@@ -2,6 +2,7 @@
 
 import httpx
 import feedparser
+import praw
 from bs4 import BeautifulSoup
 from langchain_core.messages import HumanMessage
 from langchain_core.language_models import BaseChatModel
@@ -12,6 +13,7 @@ from datetime import datetime
 from collections import Counter
 import argparse
 import asyncio
+import os
 
 
 @dataclass
@@ -66,6 +68,65 @@ def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
     except Exception as e:
         print(f"  ✗ Error fetching Google News: {e}")
         return []
+
+
+# ============================================================================
+# Reddit Ingestor
+# ============================================================================
+
+def fetch_reddit_mentions(brand_name: str, limit: int = 10, subreddits: Optional[List[str]] = None) -> List[Dict]:
+    """
+    Fetch recent mentions of a brand from Reddit.
+
+    Args:
+        brand_name: The brand to search for
+        limit: Maximum number of posts to fetch
+        subreddits: List of subreddit names to search (default: all)
+
+    Returns:
+        List of mention dictionaries with title, url, author, published_date
+    """
+    try:
+        # Initialize Reddit client (read-only, no authentication needed for search)
+        reddit = praw.Reddit(
+            client_id="brandpulse_phase1",  # Placeholder - read-only mode
+            client_secret=None,
+            user_agent="BrandPulse/1.0 (Brand Monitoring Tool)"
+        )
+
+        mentions = []
+
+        # Search Reddit for brand mentions
+        if subreddits:
+            search_query = f"{brand_name}"
+            subreddit_str = "+".join(subreddits)
+            subreddit = reddit.subreddit(subreddit_str)
+            print(f"  Searching r/{subreddit_str} for '{brand_name}'...")
+        else:
+            search_query = f"{brand_name}"
+            subreddit = reddit.subreddit("all")
+            print(f"  Searching all of Reddit for '{brand_name}'...")
+
+        # Search and collect posts
+        for submission in subreddit.search(search_query, limit=limit, sort="new"):
+            mention = {
+                "title": submission.title,
+                "url": f"https://reddit.com{submission.permalink}",
+                "author": str(submission.author) if submission.author else "[deleted]",
+                "published_date": datetime.fromtimestamp(submission.created_utc),
+                "source": "reddit",
+                "content_snippet": submission.selftext[:500] if submission.selftext else ""
+            }
+            mentions.append(mention)
+
+        print(f"  ✓ Found {len(mentions)} posts from Reddit")
+        return mentions
+
+    except Exception as e:
+        print(f"  ✗ Error fetching Reddit mentions: {e}")
+        print(f"     Note: Reddit API may require authentication for full access")
+        return []
+
 
 # ============================================================================
 # Content Fetching & Parsing
@@ -176,6 +237,7 @@ Reason: [one sentence explanation]
         print(f"    Warning: Sentiment analysis failed: {e}")
         return 0.0, "Neutral"
 
+
 # ============================================================================
 # Multi-Source Processing
 # ============================================================================
@@ -197,9 +259,12 @@ async def process_mentions(raw_mentions: List[Dict], brand_name: str, llm: BaseC
     for i, raw in enumerate(raw_mentions, 1):
         print(f"    [{i}/{len(raw_mentions)}] Processing: {raw['title'][:60]}...")
 
-        # Fetch article content
-        html_content = await fetch_url_content(raw['url'])
-        content = extract_readable_text(html_content)
+        # Fetch article content (skip for Reddit posts that already have content)
+        if raw['source'] == 'reddit' and raw.get('content_snippet'):
+            content = raw['content_snippet']
+        else:
+            html_content = await fetch_url_content(raw['url'])
+            content = extract_readable_text(html_content)
 
         # Analyze sentiment
         sentiment_score, sentiment_label = await analyze_sentiment(
@@ -223,6 +288,7 @@ async def process_mentions(raw_mentions: List[Dict], brand_name: str, llm: BaseC
         print(f"      → Sentiment: {sentiment_label} ({sentiment_score:+.2f})")
 
     return processed_mentions
+
 
 # ============================================================================
 # Report Generation
@@ -262,7 +328,7 @@ def generate_report(mentions: List[Mention], brand_name: str) -> None:
     # Per-source breakdown
     print(f"\n📰 By Source:")
     for source, source_mentions in by_source.items():
-        source_name = "Google News" 
+        source_name = "Google News" if source == "google_news" else "Reddit"
         source_counts = Counter(m.sentiment_label for m in source_mentions)
         source_avg = sum(m.sentiment_score for m in source_mentions) / len(source_mentions)
 
@@ -313,8 +379,14 @@ async def main():
     parser.add_argument(
         "--sources",
         type=str,
-        default="news",
-        help="Comma-separated list of sources: news"
+        default="news,reddit",
+        help="Comma-separated list of sources: news,reddit (default: both)"
+    )
+    parser.add_argument(
+        "--subreddits",
+        type=str,
+        default=None,
+        help="Comma-separated subreddits to search (default: all)"
     )
 
     args = parser.parse_args()
@@ -339,6 +411,12 @@ async def main():
         print("📰 Collecting from Google News...")
         news_mentions = fetch_google_news_mentions(brand_name, limit_per_source)
         raw_mentions.extend(news_mentions)
+
+    if 'reddit' in sources:
+        print("\n🔴 Collecting from Reddit...")
+        subreddit_list = args.subreddits.split(',') if args.subreddits else None
+        reddit_mentions = fetch_reddit_mentions(brand_name, limit_per_source, subreddit_list)
+        raw_mentions.extend(reddit_mentions)
 
     if not raw_mentions:
         print("\n❌ No mentions found. Try adjusting your search parameters.")

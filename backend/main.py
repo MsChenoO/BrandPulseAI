@@ -2,25 +2,23 @@
 
 import httpx
 import feedparser
-import praw
 from bs4 import BeautifulSoup
 from langchain_core.messages import HumanMessage
 from langchain_core.language_models import BaseChatModel
 from langchain_ollama import ChatOllama
 from typing import List, Dict, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
 from collections import Counter
 import argparse
 import asyncio
-import os
 
 
 @dataclass
 class Mention:
     """Data model for a brand mention from any source"""
     brand_name: str
-    source: str  # "google_news" or "reddit"
+    source: str  # "google_news" or "hackernews"
     title: str
     url: str
     content_snippet: str
@@ -28,6 +26,7 @@ class Mention:
     sentiment_label: str  # Positive/Neutral/Negative
     published_date: Optional[datetime]
     author: Optional[str] = None
+    points: Optional[int] = None  # HackerNews points
 
 
 # ============================================================================
@@ -71,60 +70,60 @@ def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
 
 
 # ============================================================================
-# Reddit Ingestor
+# HackerNews Ingestor
 # ============================================================================
 
-def fetch_reddit_mentions(brand_name: str, limit: int = 10, subreddits: Optional[List[str]] = None) -> List[Dict]:
+async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
     """
-    Fetch recent mentions of a brand from Reddit.
+    Fetch recent mentions of a brand from HackerNews using Algolia API.
 
     Args:
         brand_name: The brand to search for
-        limit: Maximum number of posts to fetch
-        subreddits: List of subreddit names to search (default: all)
+        limit: Maximum number of stories to fetch
 
     Returns:
-        List of mention dictionaries with title, url, author, published_date
+        List of mention dictionaries with title, url, author, published_date, points
     """
     try:
-        # Initialize Reddit client (read-only, no authentication needed for search)
-        reddit = praw.Reddit(
-            client_id="brandpulse_phase1",  # Placeholder - read-only mode
-            client_secret=None,
-            user_agent="BrandPulse/1.0 (Brand Monitoring Tool)"
-        )
+        # HackerNews Algolia Search API
+        search_url = f"https://hn.algolia.com/api/v1/search?query={brand_name}&tags=story&hitsPerPage={limit}"
+
+        print(f"  Searching HackerNews for '{brand_name}'...")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(search_url, timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
 
         mentions = []
+        for hit in data.get('hits', [])[:limit]:
+            # Parse timestamp
+            published_date = None
+            if hit.get('created_at'):
+                try:
+                    published_date = datetime.fromisoformat(hit['created_at'].replace('Z', '+00:00'))
+                except:
+                    pass
 
-        # Search Reddit for brand mentions
-        if subreddits:
-            search_query = f"{brand_name}"
-            subreddit_str = "+".join(subreddits)
-            subreddit = reddit.subreddit(subreddit_str)
-            print(f"  Searching r/{subreddit_str} for '{brand_name}'...")
-        else:
-            search_query = f"{brand_name}"
-            subreddit = reddit.subreddit("all")
-            print(f"  Searching all of Reddit for '{brand_name}'...")
+            # Get URL (use story_url if available, otherwise HN item page)
+            url = hit.get('url') or f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
 
-        # Search and collect posts
-        for submission in subreddit.search(search_query, limit=limit, sort="new"):
             mention = {
-                "title": submission.title,
-                "url": f"https://reddit.com{submission.permalink}",
-                "author": str(submission.author) if submission.author else "[deleted]",
-                "published_date": datetime.fromtimestamp(submission.created_utc),
-                "source": "reddit",
-                "content_snippet": submission.selftext[:500] if submission.selftext else ""
+                "title": hit.get('title', ''),
+                "url": url,
+                "author": hit.get('author', 'unknown'),
+                "published_date": published_date,
+                "source": "hackernews",
+                "content_snippet": hit.get('story_text', '')[:500] if hit.get('story_text') else '',
+                "points": hit.get('points', 0)
             }
             mentions.append(mention)
 
-        print(f"  ✓ Found {len(mentions)} posts from Reddit")
+        print(f"  ✓ Found {len(mentions)} stories from HackerNews")
         return mentions
 
     except Exception as e:
-        print(f"  ✗ Error fetching Reddit mentions: {e}")
-        print(f"     Note: Reddit API may require authentication for full access")
+        print(f"  ✗ Error fetching HackerNews mentions: {e}")
         return []
 
 
@@ -259,8 +258,8 @@ async def process_mentions(raw_mentions: List[Dict], brand_name: str, llm: BaseC
     for i, raw in enumerate(raw_mentions, 1):
         print(f"    [{i}/{len(raw_mentions)}] Processing: {raw['title'][:60]}...")
 
-        # Fetch article content (skip for Reddit posts that already have content)
-        if raw['source'] == 'reddit' and raw.get('content_snippet'):
+        # Fetch article content (skip for HackerNews posts that already have content)
+        if raw['source'] == 'hackernews' and raw.get('content_snippet'):
             content = raw['content_snippet']
         else:
             html_content = await fetch_url_content(raw['url'])
@@ -281,7 +280,8 @@ async def process_mentions(raw_mentions: List[Dict], brand_name: str, llm: BaseC
             sentiment_score=sentiment_score,
             sentiment_label=sentiment_label,
             published_date=raw.get('published_date'),
-            author=raw.get('author')
+            author=raw.get('author'),
+            points=raw.get('points')
         )
 
         processed_mentions.append(mention)
@@ -328,7 +328,7 @@ def generate_report(mentions: List[Mention], brand_name: str) -> None:
     # Per-source breakdown
     print(f"\n📰 By Source:")
     for source, source_mentions in by_source.items():
-        source_name = "Google News" if source == "google_news" else "Reddit"
+        source_name = "Google News" if source == "google_news" else "HackerNews"
         source_counts = Counter(m.sentiment_label for m in source_mentions)
         source_avg = sum(m.sentiment_score for m in source_mentions) / len(source_mentions)
 
@@ -341,7 +341,7 @@ def generate_report(mentions: List[Mention], brand_name: str) -> None:
     # Recent mentions
     print(f"\n📝 Recent Mentions:")
     for mention in mentions[:5]:  # Show top 5
-        source_icon = "🗞️ " if mention.source == "google_news" else "🔴"
+        source_icon = "🗞️ " if mention.source == "google_news" else "🟠"
         print(f"\n   {source_icon} [{mention.sentiment_label}] {mention.title[:70]}")
         print(f"      {mention.url}")
         if mention.content_snippet:
@@ -379,14 +379,8 @@ async def main():
     parser.add_argument(
         "--sources",
         type=str,
-        default="news,reddit",
-        help="Comma-separated list of sources: news,reddit (default: both)"
-    )
-    parser.add_argument(
-        "--subreddits",
-        type=str,
-        default=None,
-        help="Comma-separated subreddits to search (default: all)"
+        default="news,hackernews",
+        help="Comma-separated list of sources: news,hackernews (default: both)"
     )
 
     args = parser.parse_args()
@@ -412,11 +406,10 @@ async def main():
         news_mentions = fetch_google_news_mentions(brand_name, limit_per_source)
         raw_mentions.extend(news_mentions)
 
-    if 'reddit' in sources:
-        print("\n🔴 Collecting from Reddit...")
-        subreddit_list = args.subreddits.split(',') if args.subreddits else None
-        reddit_mentions = fetch_reddit_mentions(brand_name, limit_per_source, subreddit_list)
-        raw_mentions.extend(reddit_mentions)
+    if 'hackernews' in sources:
+        print("\n🟠 Collecting from HackerNews...")
+        hn_mentions = await fetch_hackernews_mentions(brand_name, limit_per_source)
+        raw_mentions.extend(hn_mentions)
 
     if not raw_mentions:
         print("\n❌ No mentions found. Try adjusting your search parameters.")

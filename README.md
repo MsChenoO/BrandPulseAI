@@ -16,6 +16,7 @@ Phase 1 implements **multi-source brand sentiment monitoring** with Google News 
 - 🖥️ **CLI interface** - Easy-to-use command-line tool
 - ⚡ **Async processing** - Fast, concurrent processing of mentions
 
+## Prerequisites
 - Python 3.11+
 - [Ollama](https://ollama.ai) installed and running
 - pip (Python package manager)

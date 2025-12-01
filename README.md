@@ -4,13 +4,13 @@ Enterprise-grade AI Sentiment Analysis Platform
 ## Overview
 **BrandPulseAI** is a scalable, event-driven platform for real-time brand reputation monitoring. It ingests data from public sources, analyzes sentiment using LLMs, and provides actionable insights through an intelligent alerting system.
 
-## Current Status: Phase 1 in progress
-Phase 1 implements **multi-source brand sentiment monitoring** with Google News and Reddit integration.
+## Current Status: Phase 1 Complete ✅
+Phase 1 implements **multi-source brand sentiment monitoring** with Google News and HackerNews integration.
 
 ## Features (Phase 1)
 - 🏷️ **Brand-focused monitoring** - Track any brand across multiple sources
 - 📰 **Google News RSS** - Automatic collection of news articles mentioning your brand
-- 🔴 **Reddit integration** - Search subreddits for brand discussions (PRAW)
+- 🟠 **HackerNews integration** - Tech community discussions via Algolia API 
 - 🤖 **AI-powered sentiment analysis** - Ollama (local LLM) analyzes each mention
 - 📊 **Multi-source aggregation** - Combined sentiment report across all sources
 - 🖥️ **CLI interface** - Easy-to-use command-line tool
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ## Usage
 
 ### Basic Usage
-Monitor brand sentiment from Google News and Reddit:
+Monitor brand sentiment from Google News and HackerNews:
 ```bash
 python backend/main.py --brand "Tesla" --limit 5
 ```
@@ -53,11 +53,14 @@ python backend/main.py --brand "OpenAI"
 # Limit mentions per source
 python backend/main.py --brand "Google" --limit 10
 
-# Choose specific sources (news, reddit, or both)
-python backend/main.py --brand "Apple" --sources news,reddit
+# Choose specific sources (news, hackernews, or both)
+python backend/main.py --brand "Apple" --sources news,hackernews
 
-# Search specific subreddits
-python backend/main.py --brand "Tesla" --sources reddit --subreddits technology,news,cars
+# HackerNews only (great for tech brands)
+python backend/main.py --brand "Python" --sources hackernews --limit 5
+
+# Google News only
+python backend/main.py --brand "Tesla" --sources news --limit 10
 
 # Use different Ollama model
 python backend/main.py --brand "Microsoft" --model llama2
@@ -66,7 +69,7 @@ python backend/main.py --brand "Microsoft" --model llama2
 ### Example Output
 ```
 ================================================================================
-  BrandPulseAI - Phase 1: Brand Sentiment Analysis
+  BrandPulse - Phase 1: Brand Sentiment Analysis
 ================================================================================
   Brand: OpenAI
   Sources: news
@@ -109,17 +112,17 @@ BrandPulseAI/
 │   ├── main.py              # Phase 1: CLI sentiment analyzer
 │   ├── requirements.txt     # Python dependencies
 │   └── venv/               # Virtual environment
-├── frontend/               # (Phase 4)
-├── infra/                  # (Phase 2: Docker configs)
+├── frontend/               
+├── infra/                 
 ├── docs/                   # Documentation
-├── PROJECT_PLAN.md         # Detailed roadmap
-└── README.md              # This file
+├── PROJECT_PLAN.md         
+└── README.md              
 ```
 
 ## Development Roadmap
 
-### ✅ Phase 1: Brand Mention Collection & Sentiment Analysis (in progress)
-- Multi-source ingestion (Google News + Reddit)
+### ✅ Phase 1: Brand Mention Collection & Sentiment Analysis (COMPLETED)
+- Multi-source ingestion (Google News + HackerNews)
 - Brand-focused search
 - Sentiment analysis via LLM
 - Aggregated reporting
@@ -157,7 +160,7 @@ BrandPulseAI/
 - **Async HTTP:** httpx
 - **HTML Parsing:** BeautifulSoup4
 - **RSS Parsing:** feedparser
-- **Reddit API:** PRAW
+- **HackerNews API:** Algolia API (free, no authentication)
 - **LLM Framework:** LangChain
 - **Local LLM:** Ollama (llama3, mistral)
 

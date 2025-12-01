@@ -25,11 +25,11 @@ Event-driven microservices architecture with message streaming, designed for sca
 **1. Platform-Specific Ingestors**
 * *Sources:*
     * **Google News RSS** 
-    * **Reddit PRAW** 
-    * *Note: Twitter/X, Facebook, Instagram excluded due to API cost/restrictions, maybe available in the future*
+    * **HackerNews Algolia API** 
+    * *Note: Twitter/X, Facebook, Instagram, Reddit excluded due to API cost/restrictions, maybe available in the future.*
 * *Process:* Each ingestor polls sources for brand mentions, normalizes to common schema
 * *Output:* Publishes `Mention` objects to Redis Streams
-* *Schema:* `{mention_id, brand_name, source, title, url, content, author, published_date, ingested_date, raw_metadata}`
+* *Schema:* `{mention_id, brand_name, source, title, url, content, author, published_date, ingested_date, points (for HN), raw_metadata}`
 
 **2. Message Bus (Redis Streams)**
 * *Technology:* Redis Streams for lightweight, persistent messaging
@@ -43,7 +43,7 @@ Event-driven microservices architecture with message streaming, designed for sca
 * *Worker Types:*
     * **Deduplication Worker:** Detects duplicate mentions using URL + title hashing
     * **Enrichment Worker:** Extracts domain, author metadata, calculates reading time
-    * **Sentiment Worker:** LangChain + Ollama/(OpenAI, not in phrase1) for sentiment classification (-1.0 to +1.0)
+    * **Sentiment Worker:** LangChain + Ollama (OpenAI optional in later phases) for sentiment classification (-1.0 to +1.0)
     * **Embedding Worker:** Generates vector embeddings for semantic search (OpenAI or local)
 * *Technology:* Python async workers consuming from Redis Streams
 * *Output:* Writes enriched mentions to PostgreSQL + indexes to Elasticsearch + pgvector
@@ -160,29 +160,29 @@ Event-driven microservices architecture with message streaming, designed for sca
 **Goal:** Prove the core concept with a working CLI tool that collects from multiple sources
 
 **Features:**
-* Accept brand name as CLI input (e.g., "Google", "Tesla")
+* Accept brand name as CLI input (e.g., "Google", "Tesla", "Python")
 * **Multi-source ingestion:**
     * **Google News RSS** - Search news articles mentioning the brand
-    * **Reddit (PRAW)** - Search relevant subreddits for brand discussions
+    * **HackerNews Algolia API** - Search tech community discussions
 * Fetch 5-10 recent mentions per source (10-20 total)
 * Parse article/post content with BeautifulSoup
 * Sentiment analysis using Ollama (local LLM)
 * Display brand sentiment report with source breakdown in terminal
 
-**Tech Stack:** Python, httpx, feedparser, PRAW, BeautifulSoup, LangChain, Ollama
+**Tech Stack:** Python, httpx, feedparser, BeautifulSoup, LangChain, Ollama
 
 **Deliverable:** CLI tool that generates sentiment reports from multiple sources
 
-**Success Criteria:** Can analyze any brand from both Google News and Reddit, showing source-specific breakdown
+**Success Criteria:** Can analyze any brand from both Google News and HackerNews, showing source-specific breakdown
 
 ---
 
 ### Phase 2: Event-Driven Architecture + Persistence
-**Goal:** Introduce message bus, add Reddit source, persist data
+**Goal:** Introduce message bus, refactor ingestors, persist data
 
 **Features:**
 * Redis Streams message bus (`mentions:raw` → `mentions:processed`)
-* Reddit ingestor using PRAW (search subreddits for brand mentions)
+* Refactor existing ingestors (Google News, HackerNews) to publish to Redis
 * PostgreSQL database with SQLModel ORM
 * Async processing workers (consume from Redis, write to DB)
 * Docker Compose setup (PostgreSQL, Redis, App)
@@ -190,7 +190,7 @@ Event-driven microservices architecture with message streaming, designed for sca
 
 **New Components:**
 * `ingestors/google_news.py` - Publishes to Redis Streams
-* `ingestors/reddit.py` - Searches relevant subreddits
+* `ingestors/hackernews.py` - Publishes to Redis Streams
 * `workers/sentiment_worker.py` - Consumes messages, runs LLM
 * `models/database.py` - SQLModel schemas
 
@@ -208,7 +208,7 @@ CREATE TABLE mentions (
 ```bash
 docker-compose up -d
 python -m ingestors.google_news --brand "Tesla"
-python -m ingestors.reddit --brand "Tesla" --subreddits "technology,news"
+python -m ingestors.hackernews --brand "Tesla"
 # Data flows: Ingestor → Redis → Worker → PostgreSQL
 ```
 

@@ -1,0 +1,13 @@
+httpx
+beautifulsoup4
+langchain-core
+langchain-ollama
+feedparser
+praw
+
+# Phase 1: Brand Mention Collection & Sentiment Analysis
+# - httpx: Async HTTP client for fetching URLs
+# - beautifulsoup4: HTML parsing
+# - langchain-core, langchain-ollama: LLM integration for sentiment analysis
+# - feedparser: Parse Google News RSS feeds
+# - praw: Reddit API wrapper for brand mention collection

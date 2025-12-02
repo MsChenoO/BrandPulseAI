@@ -33,7 +33,7 @@ class Mention:
 # Google News RSS Ingestor
 # ============================================================================
 
-def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
+def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> tuple[List[Dict], int]:
     """
     Fetch recent mentions of a brand from Google News RSS feed.
 
@@ -42,7 +42,7 @@ def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
         limit: Maximum number of articles to fetch
 
     Returns:
-        List of mention dictionaries with title, url, published_date
+        Tuple of (mention dictionaries list, total available count)
     """
     try:
         # Google News RSS search URL
@@ -67,18 +67,18 @@ def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
         else:
             print(f"  ✓ Found {total_available} articles mentioning '{brand_name}', analyzing {len(mentions)} most recent")
 
-        return mentions
+        return mentions, total_available
 
     except Exception as e:
         print(f"  ✗ Error fetching Google News: {e}")
-        return []
+        return [], 0
 
 
 # ============================================================================
 # HackerNews Ingestor
 # ============================================================================
 
-async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
+async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> tuple[List[Dict], int]:
     """
     Fetch recent mentions of a brand from HackerNews using Algolia API.
 
@@ -87,7 +87,7 @@ async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Di
         limit: Maximum number of stories to fetch
 
     Returns:
-        List of mention dictionaries with title, url, author, published_date, points
+        Tuple of (mention dictionaries list, total available count)
     """
     try:
         # HackerNews Algolia Search API
@@ -100,7 +100,7 @@ async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Di
             response.raise_for_status()
             data = response.json()
 
-        total_available = data.get('nbHits', 0)  
+        total_available = data.get('nbHits', 0)
         mentions = []
         for hit in data.get('hits', [])[:limit]:
             # Parse timestamp
@@ -130,11 +130,11 @@ async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Di
         else:
             print(f"  ✓ Found {total_available} articles mentioning '{brand_name}', analyzing {len(mentions)} most relevant")
 
-        return mentions
+        return mentions, total_available
 
     except Exception as e:
         print(f"  ✗ Error fetching HackerNews mentions: {e}")
-        return []
+        return [], 0
 
 
 # ============================================================================
@@ -304,7 +304,7 @@ async def process_mentions(raw_mentions: List[Dict], brand_name: str, llm: BaseC
 # Report Generation
 # ============================================================================
 
-def generate_report(mentions: List[Mention], brand_name: str) -> None:
+def generate_report(mentions: List[Mention], brand_name: str, total_counts: Dict[str, int]) -> None:
     """Generate and print a brand sentiment report."""
 
     if not mentions:
@@ -328,11 +328,17 @@ def generate_report(mentions: List[Mention], brand_name: str) -> None:
     print("=" * 80)
 
     # Scanning statistics
+    total_found = sum(total_counts.values())
+    total_analyzed = len(mentions)
+
     print(f"\n🔍 Scanning Statistics:")
-    print(f"   Total Articles Scanned: {len(mentions)}")
+    print(f"   Total Articles Found: {total_found}")
+    print(f"   Articles Analyzed: {total_analyzed}")
+    print(f"\n   By Source:")
     for source, source_mentions in by_source.items():
         source_name = "Google News" if source == "google_news" else "HackerNews"
-        print(f"   • {source_name}: {len(source_mentions)} articles")
+        source_total = total_counts.get(source, 0)
+        print(f"   • {source_name}: {len(source_mentions)} analyzed ({source_total} total available)")
 
     print(f"\n📊 Overall Sentiment ({len(mentions)} mentions analyzed)")
     print(f"   Average Sentiment Score: {avg_score:+.2f}")
@@ -417,16 +423,19 @@ async def main():
 
     # Collect mentions from all sources
     raw_mentions = []
+    total_counts = {}
 
     if 'news' in sources:
         print("📰 Collecting from Google News...")
-        news_mentions = fetch_google_news_mentions(brand_name, limit_per_source)
+        news_mentions, news_total = fetch_google_news_mentions(brand_name, limit_per_source)
         raw_mentions.extend(news_mentions)
+        total_counts['google_news'] = news_total
 
     if 'hackernews' in sources:
         print("\n🟠 Collecting from HackerNews...")
-        hn_mentions = await fetch_hackernews_mentions(brand_name, limit_per_source)
+        hn_mentions, hn_total = await fetch_hackernews_mentions(brand_name, limit_per_source)
         raw_mentions.extend(hn_mentions)
+        total_counts['hackernews'] = hn_total
 
     if not raw_mentions:
         print("\n❌ No mentions found. Try adjusting your search parameters.")
@@ -442,7 +451,7 @@ async def main():
     processed_mentions = await process_mentions(raw_mentions, brand_name, llm)
 
     # Generate report
-    generate_report(processed_mentions, brand_name)
+    generate_report(processed_mentions, brand_name, total_counts)
 
 
 if __name__ == "__main__":

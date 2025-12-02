@@ -48,9 +48,10 @@ def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
         # Google News RSS search URL
         search_url = f"https://news.google.com/rss/search?q={brand_name}&hl=en-US&gl=US&ceid=US:en"
 
-        print(f"  Fetching from Google News RSS: {search_url}")
+        print(f"  Searching Google News...")
         feed = feedparser.parse(search_url)
 
+        total_available = len(feed.entries)
         mentions = []
         for entry in feed.entries[:limit]:
             mention = {
@@ -61,7 +62,11 @@ def fetch_google_news_mentions(brand_name: str, limit: int = 10) -> List[Dict]:
             }
             mentions.append(mention)
 
-        print(f"  ✓ Found {len(mentions)} articles from Google News")
+        if total_available <= limit:
+            print(f"  ✓ Found {total_available} articles mentioning '{brand_name}', analyzing all")
+        else:
+            print(f"  ✓ Found {total_available} articles mentioning '{brand_name}', analyzing {len(mentions)} most recent")
+
         return mentions
 
     except Exception as e:
@@ -88,13 +93,14 @@ async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Di
         # HackerNews Algolia Search API
         search_url = f"https://hn.algolia.com/api/v1/search?query={brand_name}&tags=story&hitsPerPage={limit}"
 
-        print(f"  Searching HackerNews for '{brand_name}'...")
+        print(f"  Searching HackerNews...")
 
         async with httpx.AsyncClient() as client:
             response = await client.get(search_url, timeout=10.0)
             response.raise_for_status()
             data = response.json()
 
+        total_available = data.get('nbHits', 0)  
         mentions = []
         for hit in data.get('hits', [])[:limit]:
             # Parse timestamp
@@ -119,7 +125,11 @@ async def fetch_hackernews_mentions(brand_name: str, limit: int = 10) -> List[Di
             }
             mentions.append(mention)
 
-        print(f"  ✓ Found {len(mentions)} stories from HackerNews")
+        if total_available <= limit:
+            print(f"  ✓ Found {total_available} articles mentioning '{brand_name}', analyzing all")
+        else:
+            print(f"  ✓ Found {total_available} articles mentioning '{brand_name}', analyzing {len(mentions)} most relevant")
+
         return mentions
 
     except Exception as e:
@@ -317,7 +327,14 @@ def generate_report(mentions: List[Mention], brand_name: str) -> None:
     print(f"  BRAND SENTIMENT REPORT: {brand_name}")
     print("=" * 80)
 
-    print(f"\n📊 Overall Summary ({len(mentions)} total mentions)")
+    # Scanning statistics
+    print(f"\n🔍 Scanning Statistics:")
+    print(f"   Total Articles Scanned: {len(mentions)}")
+    for source, source_mentions in by_source.items():
+        source_name = "Google News" if source == "google_news" else "HackerNews"
+        print(f"   • {source_name}: {len(source_mentions)} articles")
+
+    print(f"\n📊 Overall Sentiment ({len(mentions)} mentions analyzed)")
     print(f"   Average Sentiment Score: {avg_score:+.2f}")
     print(f"   Breakdown:")
     for label in ["Positive", "Neutral", "Negative"]:

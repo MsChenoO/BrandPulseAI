@@ -110,8 +110,7 @@ python backend/main.py --brand "Microsoft" --model llama2
 BrandPulseAI/
 ├── backend/
 │   ├── main.py              # Phase 1: CLI sentiment analyzer
-│   ├── requirements.txt     # Python dependencies
-│   └── venv/               # Virtual environment
+│   └── requirements.txt     # Python dependencies
 ├── frontend/               
 ├── infra/                 
 ├── docs/                   # Documentation

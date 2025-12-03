@@ -1,11 +1,22 @@
+# ============================================================================
+# Phase 1: Brand Mention Collection & Sentiment Analysis
+# ============================================================================
 httpx
 beautifulsoup4
 langchain-core
 langchain-ollama
 feedparser
 
-# Phase 1: Brand Mention Collection & Sentiment Analysis
-# - httpx: Async HTTP client for fetching URLs and HackerNews API
-# - beautifulsoup4: HTML parsing
-# - langchain-core, langchain-ollama: LLM integration for sentiment analysis
-# - feedparser: Parse Google News RSS feeds
+# ============================================================================
+# Phase 2: Event-Driven Architecture + Persistence
+# ============================================================================
+# Database
+sqlmodel>=0.0.14
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+
+# Message Queue
+redis>=5.0.1
+
+# Utilities
+python-dotenv>=1.0.0

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============================================================================
   # PostgreSQL Database
@@ -12,7 +10,7 @@ services:
       POSTGRES_PASSWORD: brandpulse_dev_password
       POSTGRES_DB: brandpulse
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

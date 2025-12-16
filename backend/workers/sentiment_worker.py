@@ -47,7 +47,7 @@ class SentimentWorker:
         if database_url is None:
             database_url = os.getenv(
                 "DATABASE_URL",
-                "postgresql://brandpulse:brandpulse_dev_password@localhost:5432/brandpulse"
+                "postgresql://brandpulse:brandpulse_dev_password@localhost:5433/brandpulse"
             )
         self.engine = get_engine(database_url)
         create_db_and_tables(self.engine)

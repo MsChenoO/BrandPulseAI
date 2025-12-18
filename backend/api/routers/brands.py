@@ -340,7 +340,7 @@ def get_sentiment_trend(
     # Convert to response format
     trend_points = [
         SentimentTrendPoint(
-            date=row.date,
+            date=datetime.combine(row.date, datetime.min.time()) if row.date else datetime.utcnow(),
             average_score=float(row.avg_score or 0.0),
             mention_count=int(row.mention_count),
             positive_count=int(row.positive_count or 0),

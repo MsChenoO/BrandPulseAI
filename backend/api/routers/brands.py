@@ -1,18 +1,18 @@
 # Phase 3: Brands Router
 # Handles brand CRUD operations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session, select
-from typing import List
+from typing import List, Optional
 import sys
 import os
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from api.schemas import BrandCreate, BrandResponse
+from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList
 from api.dependencies import get_db_session, NotFoundError
-from models.database import Brand
+from models.database import Brand, Mention
 from datetime import datetime
 
 router = APIRouter(

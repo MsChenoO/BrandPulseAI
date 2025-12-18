@@ -159,9 +159,10 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Schema for search response"""
-    results: List[SearchResult]
+    results: List[MentionResponse]
     total: int
     took_ms: int = Field(..., description="Search time in milliseconds")
+    query: str = Field(..., description="Original search query")
 
 
 # ============================================================================

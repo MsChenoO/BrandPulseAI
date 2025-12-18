@@ -4,8 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-# Import routers (will create these next)
-# from api.routers import brands, mentions, search
+# Import routers
+from api.routers import brands
+# from api.routers import mentions, search  # Will create these next
 
 # Create FastAPI app
 app = FastAPI(
@@ -50,10 +51,10 @@ async def root():
         "health": "/health"
     }
 
-# Include routers (will uncomment as we create them)
-# app.include_router(brands.router, prefix="/brands", tags=["Brands"])
-# app.include_router(mentions.router, prefix="/mentions", tags=["Mentions"])
-# app.include_router(search.router, prefix="/search", tags=["Search"])
+# Include routers
+app.include_router(brands.router)
+# app.include_router(mentions.router, prefix="/mentions", tags=["Mentions"])  # TODO
+# app.include_router(search.router, prefix="/search", tags=["Search"])  # TODO
 
 # Startup event
 @app.on_event("startup")

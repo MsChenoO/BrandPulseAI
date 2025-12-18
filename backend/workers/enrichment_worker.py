@@ -169,10 +169,8 @@ class EnrichmentWorker:
             # Enrich mention
             enriched_data = self.enrich_mention(mention_data)
 
-            # Publish to processed stream (or could be a new enriched stream)
-            # For now, we'll add it back to deduplicated stream with enrichments
-            # In production, you might want a separate stream
-            self.redis_client.publish_deduplicated_mention(enriched_data)
+            # Publish to enriched stream
+            self.redis_client.publish_enriched_mention(enriched_data)
 
             self.stats["enriched"] += 1
 
@@ -196,7 +194,7 @@ class EnrichmentWorker:
         print(f"  Consumer Group: {self.consumer_group}")
         print(f"  Consumer Name: {self.consumer_name}")
         print(f"  Input Stream: {self.redis_client.STREAM_MENTIONS_DEDUPLICATED}")
-        print(f"  Output Stream: {self.redis_client.STREAM_MENTIONS_DEDUPLICATED} (enriched)")
+        print(f"  Output Stream: {self.redis_client.STREAM_MENTIONS_ENRICHED}")
         print(f"{'='*80}\n")
 
         try:

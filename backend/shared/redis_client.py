@@ -14,6 +14,7 @@ class RedisStreamClient:
     # Stream names
     STREAM_MENTIONS_RAW = "mentions:raw"
     STREAM_MENTIONS_DEDUPLICATED = "mentions:deduplicated"
+    STREAM_MENTIONS_ENRICHED = "mentions:enriched"
     STREAM_MENTIONS_PROCESSED = "mentions:processed"
 
     # Set for deduplication hashes
@@ -201,6 +202,90 @@ class RedisStreamClient:
             message_id: ID of the message to acknowledge
         """
         self.client.xack(self.STREAM_MENTIONS_DEDUPLICATED, consumer_group, message_id)
+
+    def publish_enriched_mention(self, mention_data: Dict[str, Any]) -> str:
+        """
+        Publish an enriched mention to the mentions:enriched stream.
+
+        Args:
+            mention_data: Dictionary containing enriched mention data
+
+        Returns:
+            Message ID from Redis
+        """
+        serialized_data = self._serialize_data(mention_data)
+        if "enriched_at" not in serialized_data:
+            serialized_data["enriched_at"] = datetime.utcnow().isoformat()
+
+        message_id = self.client.xadd(
+            self.STREAM_MENTIONS_ENRICHED,
+            serialized_data,
+            maxlen=10000
+        )
+
+        return message_id
+
+    def consume_enriched_mentions(
+        self,
+        consumer_group: str,
+        consumer_name: str,
+        block_ms: int = 5000,
+        count: int = 10
+    ):
+        """
+        Consume messages from mentions:enriched stream using consumer groups.
+
+        Args:
+            consumer_group: Name of the consumer group
+            consumer_name: Name of this consumer instance
+            block_ms: Block for this many milliseconds if no messages
+            count: Maximum number of messages to retrieve
+
+        Yields:
+            Tuples of (message_id, message_data)
+        """
+        # Create consumer group if it doesn't exist
+        try:
+            self.client.xgroup_create(
+                self.STREAM_MENTIONS_ENRICHED,
+                consumer_group,
+                id='0',
+                mkstream=True
+            )
+        except redis.exceptions.ResponseError as e:
+            # Group already exists
+            if "BUSYGROUP" not in str(e):
+                raise
+
+        while True:
+            # Read messages
+            messages = self.client.xreadgroup(
+                consumer_group,
+                consumer_name,
+                {self.STREAM_MENTIONS_ENRICHED: '>'},
+                count=count,
+                block=block_ms
+            )
+
+            if not messages:
+                continue
+
+            # Process messages
+            for stream_name, stream_messages in messages:
+                for message_id, message_data in stream_messages:
+                    # Deserialize data
+                    deserialized_data = self._deserialize_data(message_data)
+                    yield message_id, deserialized_data
+
+    def acknowledge_enriched_message(self, consumer_group: str, message_id: str):
+        """
+        Acknowledge that an enriched message has been processed.
+
+        Args:
+            consumer_group: Name of the consumer group
+            message_id: ID of the message to acknowledge
+        """
+        self.client.xack(self.STREAM_MENTIONS_ENRICHED, consumer_group, message_id)
 
     def publish_processed_mention(self, mention_data: Dict[str, Any]) -> str:
         """

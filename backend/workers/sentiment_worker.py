@@ -1,5 +1,5 @@
-# Phase 2: Sentiment Analysis Worker
-# Consumes raw mentions from Redis Streams, analyzes sentiment, and persists to PostgreSQL
+# Phase 2/3: Sentiment Analysis Worker
+# Consumes enriched mentions from Redis Streams, analyzes sentiment, persists to PostgreSQL, and indexes to Elasticsearch
 
 import asyncio
 import httpx
@@ -15,6 +15,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.redis_client import RedisStreamClient
+from shared.elasticsearch_client import ElasticsearchClient, MENTIONS_INDEX
 from models.database import (
     get_engine, create_db_and_tables, get_session,
     Brand, Mention, SentimentLabel, Source
@@ -28,6 +29,7 @@ class SentimentWorker:
         self,
         redis_url: str = None,
         database_url: str = None,
+        elasticsearch_url: str = None,
         ollama_model: str = "llama3",
         consumer_name: str = "sentiment-worker-1"
     ):
@@ -37,6 +39,7 @@ class SentimentWorker:
         Args:
             redis_url: Redis connection URL
             database_url: PostgreSQL connection URL
+            elasticsearch_url: Elasticsearch connection URL
             ollama_model: Ollama model name for sentiment analysis
             consumer_name: Unique name for this worker instance
         """
@@ -52,6 +55,11 @@ class SentimentWorker:
         self.engine = get_engine(database_url)
         create_db_and_tables(self.engine)
 
+        # Elasticsearch setup
+        self.es_client = ElasticsearchClient(elasticsearch_url=elasticsearch_url)
+        # Ensure index exists
+        self.es_client.create_index(MENTIONS_INDEX)
+
         # LLM for sentiment analysis
         self.llm = ChatOllama(model=ollama_model)
         self.ollama_model = ollama_model
@@ -63,6 +71,7 @@ class SentimentWorker:
         print(f"✓ Sentiment Worker initialized")
         print(f"  - Redis: {self.redis_client.redis_url}")
         print(f"  - Database: {database_url}")
+        print(f"  - Elasticsearch: {self.es_client.es_url}")
         print(f"  - LLM Model: {ollama_model}")
         print(f"  - Consumer: {consumer_name}")
 
@@ -220,8 +229,38 @@ Reason: [one sentence explanation]
             session.refresh(mention)
             print(f"    ✓ Saved to database (Mention ID: {mention.id}, Brand ID: {brand.id})")
 
+            # Index to Elasticsearch
+            es_document = {
+                "mention_id": mention.id,
+                "brand_id": brand.id,
+                "brand_name": brand.name,
+                "source": mention_data['source'],
+                "title": mention_data['title'],
+                "url": mention_data['url'],
+                "content": content[:2000] if content else None,
+                "sentiment_score": sentiment_score,
+                "sentiment_label": sentiment_label,
+                "published_date": mention_data.get('published_date'),
+                "ingested_date": mention_data.get('ingested_at') or datetime.utcnow().isoformat(),
+                "processed_date": datetime.utcnow().isoformat(),
+                "author": mention_data.get('author'),
+                "points": mention_data.get('points'),
+                # Include enrichment metadata if present
+                "domain": mention_data.get('domain'),
+                "word_count": mention_data.get('word_count'),
+                "reading_time_minutes": mention_data.get('reading_time_minutes'),
+                "quality_score": mention_data.get('quality_score'),
+            }
+
+            try:
+                self.es_client.index_mention(mention.id, es_document, index_name=MENTIONS_INDEX)
+                print(f"    ✓ Indexed to Elasticsearch")
+            except Exception as e:
+                print(f"    ⚠ Elasticsearch indexing failed: {e}")
+                # Don't fail the whole process if ES indexing fails
+
         # Acknowledge message in Redis
-        self.redis_client.acknowledge_message(self.consumer_group, message_id)
+        self.redis_client.acknowledge_enriched_message(self.consumer_group, message_id)
 
     async def run(self):
         """Main worker loop"""
@@ -229,11 +268,12 @@ Reason: [one sentence explanation]
         print(f"  Sentiment Worker Running")
         print(f"  Consumer Group: {self.consumer_group}")
         print(f"  Consumer Name: {self.consumer_name}")
-        print(f"  Waiting for messages from: {self.redis_client.STREAM_MENTIONS_RAW}")
+        print(f"  Input Stream: {self.redis_client.STREAM_MENTIONS_ENRICHED}")
+        print(f"  Output: PostgreSQL + Elasticsearch")
         print(f"{'='*80}\n")
 
         try:
-            for message_id, mention_data in self.redis_client.consume_raw_mentions(
+            for message_id, mention_data in self.redis_client.consume_enriched_mentions(
                 consumer_group=self.consumer_group,
                 consumer_name=self.consumer_name,
                 block_ms=5000,
@@ -263,6 +303,7 @@ async def main_async(args):
     worker = SentimentWorker(
         redis_url=args.redis_url,
         database_url=args.database_url,
+        elasticsearch_url=args.elasticsearch_url,
         ollama_model=args.model,
         consumer_name=args.consumer_name
     )
@@ -274,7 +315,7 @@ async def main_async(args):
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="BrandPulse Phase 2: Sentiment Analysis Worker"
+        description="BrandPulse Phase 2/3: Sentiment Analysis Worker"
     )
     parser.add_argument(
         "--redis-url",
@@ -287,6 +328,12 @@ def main():
         type=str,
         default=None,
         help="PostgreSQL connection URL"
+    )
+    parser.add_argument(
+        "--elasticsearch-url",
+        type=str,
+        default=None,
+        help="Elasticsearch connection URL"
     )
     parser.add_argument(
         "--model",

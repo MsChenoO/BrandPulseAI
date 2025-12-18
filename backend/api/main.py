@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 # Import routers
-from api.routers import brands
-# from api.routers import mentions, search  # Will create these next
+from api.routers import brands, search
+# from api.routers import mentions  # Will create this next
 
 # Create FastAPI app
 app = FastAPI(
@@ -53,8 +53,8 @@ async def root():
 
 # Include routers
 app.include_router(brands.router)
+app.include_router(search.router)
 # app.include_router(mentions.router, prefix="/mentions", tags=["Mentions"])  # TODO
-# app.include_router(search.router, prefix="/search", tags=["Search"])  # TODO
 
 # Startup event
 @app.on_event("startup")

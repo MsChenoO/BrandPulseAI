@@ -101,7 +101,8 @@ class ElasticsearchClient:
             # Create index with mapping
             self.es.indices.create(
                 index=index_name,
-                body=MENTIONS_MAPPING
+                mappings=MENTIONS_MAPPING["mappings"],
+                settings=MENTIONS_MAPPING["settings"]
             )
             print(f"✓ Created index: {index_name}")
             return True

@@ -15,6 +15,7 @@ from api.dependencies import get_db_session, NotFoundError
 from models.database import Brand, Mention
 from datetime import datetime, timedelta
 from sqlmodel import func
+from sqlalchemy import case
 
 router = APIRouter(
     prefix="/brands",
@@ -320,9 +321,9 @@ def get_sentiment_trend(
         func.date(Mention.published_date).label("date"),
         func.avg(Mention.sentiment_score).label("avg_score"),
         func.count(Mention.id).label("mention_count"),
-        func.sum(func.case((Mention.sentiment_label == "Positive", 1), else_=0)).label("positive_count"),
-        func.sum(func.case((Mention.sentiment_label == "Neutral", 1), else_=0)).label("neutral_count"),
-        func.sum(func.case((Mention.sentiment_label == "Negative", 1), else_=0)).label("negative_count")
+        func.sum(case((Mention.sentiment_label == "Positive", 1), else_=0)).label("positive_count"),
+        func.sum(case((Mention.sentiment_label == "Neutral", 1), else_=0)).label("neutral_count"),
+        func.sum(case((Mention.sentiment_label == "Negative", 1), else_=0)).label("negative_count")
     ).where(
         Mention.brand_id == brand_id,
         Mention.published_date >= start_date,

@@ -138,8 +138,8 @@ def search_health(
         # Check if Elasticsearch is reachable
         es_info = es.info()
 
-        # Check if mentions index exists
-        index_exists = es.indices.exists(index=MENTIONS_INDEX)
+        # Check if mentions index exists (convert to bool explicitly)
+        index_exists = bool(es.indices.exists(index=MENTIONS_INDEX))
 
         # Get index stats if it exists
         doc_count = 0

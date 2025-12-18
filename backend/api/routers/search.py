@@ -100,7 +100,7 @@ def search_mentions(
             ingested_date=source_data.get("ingested_date"),
             processed_date=source_data.get("processed_date"),
             # Add highlights if available
-            _highlights=highlights if highlights else None
+            highlights=highlights if highlights else None
         )
         mentions.append(mention)
 

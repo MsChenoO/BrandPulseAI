@@ -85,7 +85,7 @@ class MentionResponse(BaseModel):
     processed_date: Optional[datetime] = None
     author: Optional[str] = None
     points: Optional[int] = Field(None, description="HackerNews points")
-    _highlights: Optional[dict] = Field(None, description="Search result highlights")
+    highlights: Optional[dict] = Field(None, description="Search result highlights")
 
     class Config:
         from_attributes = True

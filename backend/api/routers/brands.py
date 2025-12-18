@@ -352,14 +352,13 @@ def get_sentiment_trend(
 
     # Calculate overall statistics
     total_mentions = sum(point.mention_count for point in trend_points)
-    avg_sentiment = sum(point.average_score * point.mention_count for point in trend_points) / total_mentions if total_mentions > 0 else 0.0
+    overall_avg = sum(point.average_score * point.mention_count for point in trend_points) / total_mentions if total_mentions > 0 else 0.0
 
     return SentimentTrendResponse(
         brand_id=brand_id,
         brand_name=brand.name,
         start_date=start_date,
         end_date=end_date,
-        trend=trend_points,
-        total_mentions=total_mentions,
-        average_sentiment=avg_sentiment
+        data_points=trend_points,
+        overall_average=overall_avg
     )

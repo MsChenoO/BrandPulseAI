@@ -10,10 +10,11 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList
+from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList, SentimentTrendResponse
 from api.dependencies import get_db_session, NotFoundError
 from models.database import Brand, Mention
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlmodel import func
 
 router = APIRouter(
     prefix="/brands",
@@ -265,4 +266,101 @@ def get_brand_mentions(
         total=total,
         page=page,
         page_size=limit
+    )
+
+
+# ============================================================================
+# GET /brands/{brand_id}/sentiment-trend - Get sentiment trend over time
+# ============================================================================
+
+@router.get(
+    "/{brand_id}/sentiment-trend",
+    response_model=SentimentTrendResponse,
+    summary="Get sentiment trend for a brand",
+    description="""
+    Returns aggregated sentiment data over time for visualization.
+
+    Groups mentions by day and calculates average sentiment score,
+    positive/neutral/negative counts, and total mentions per day.
+    """
+)
+def get_sentiment_trend(
+    brand_id: int,
+    db: Session = Depends(get_db_session),
+    days: int = Query(30, ge=1, le=365, description="Number of days to include")
+) -> SentimentTrendResponse:
+    """
+    Get sentiment trend over time for a brand.
+
+    Args:
+        brand_id: Brand ID
+        db: Database session
+        days: Number of days to include (default 30)
+
+    Returns:
+        Time-series sentiment data
+
+    Raises:
+        404: Brand not found
+    """
+    # Check if brand exists
+    brand = db.get(Brand, brand_id)
+    if not brand:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Brand with ID {brand_id} not found"
+        )
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Query mentions with sentiment scores within date range
+    statement = select(
+        func.date(Mention.published_date).label("date"),
+        func.avg(Mention.sentiment_score).label("avg_score"),
+        func.count(Mention.id).label("mention_count"),
+        func.sum(func.case((Mention.sentiment_label == "Positive", 1), else_=0)).label("positive_count"),
+        func.sum(func.case((Mention.sentiment_label == "Neutral", 1), else_=0)).label("neutral_count"),
+        func.sum(func.case((Mention.sentiment_label == "Negative", 1), else_=0)).label("negative_count")
+    ).where(
+        Mention.brand_id == brand_id,
+        Mention.published_date >= start_date,
+        Mention.published_date <= end_date,
+        Mention.sentiment_score.isnot(None)  # Only include processed mentions
+    ).group_by(
+        func.date(Mention.published_date)
+    ).order_by(
+        func.date(Mention.published_date)
+    )
+
+    results = db.exec(statement).all()
+
+    # Convert to response format
+    from api.schemas import SentimentTrendPoint
+
+    trend_points = [
+        SentimentTrendPoint(
+            date=row.date,
+            average_score=float(row.avg_score or 0.0),
+            mention_count=int(row.mention_count),
+            positive_count=int(row.positive_count or 0),
+            neutral_count=int(row.neutral_count or 0),
+            negative_count=int(row.negative_count or 0)
+        )
+        for row in results
+    ]
+
+    # Calculate overall statistics
+    total_mentions = sum(point.mention_count for point in trend_points)
+    avg_sentiment = sum(point.average_score * point.mention_count for point in trend_points) / total_mentions if total_mentions > 0 else 0.0
+
+    return SentimentTrendResponse(
+        brand_id=brand_id,
+        brand_name=brand.name,
+        start_date=start_date,
+        end_date=end_date,
+        trend=trend_points,
+        total_mentions=total_mentions,
+        average_sentiment=avg_sentiment
     )

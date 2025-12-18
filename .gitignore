@@ -52,3 +52,9 @@ docker-compose.override.yml
 
 # Logs
 *.log
+
+# Phase notes (personal/temporary)
+phase3.md
+
+# Documentation (local notes)
+docs/

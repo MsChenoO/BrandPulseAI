@@ -55,3 +55,6 @@ docker-compose.override.yml
 
 # Phase notes (personal/temporary)
 phase3.md
+
+# Documentation (local notes)
+docs/

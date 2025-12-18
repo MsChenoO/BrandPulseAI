@@ -53,8 +53,8 @@ def search_mentions(
     Returns:
         Search results with highlights and relevance scores
     """
-    # Create Elasticsearch client wrapper
-    es_client = ElasticsearchClient(es_url=es.transport.hosts[0])
+    # Create Elasticsearch client wrapper (reuses the same URL from environment)
+    es_client = ElasticsearchClient()
 
     # Extract search parameters
     query = search_request.query

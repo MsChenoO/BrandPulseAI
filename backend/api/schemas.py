@@ -73,6 +73,7 @@ class MentionResponse(BaseModel):
     """Schema for mention response"""
     id: int
     brand_id: int
+    brand_name: Optional[str] = None
     source: SourceEnum
     title: str
     url: str
@@ -84,6 +85,7 @@ class MentionResponse(BaseModel):
     processed_date: Optional[datetime] = None
     author: Optional[str] = None
     points: Optional[int] = Field(None, description="HackerNews points")
+    highlights: Optional[dict] = Field(None, description="Search result highlights")
 
     class Config:
         from_attributes = True
@@ -157,9 +159,10 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Schema for search response"""
-    results: List[SearchResult]
+    results: List[MentionResponse]
     total: int
     took_ms: int = Field(..., description="Search time in milliseconds")
+    query: str = Field(..., description="Original search query")
 
 
 # ============================================================================

@@ -58,13 +58,12 @@ def search_mentions(
 
     # Extract search parameters
     query = search_request.query
-    filters = search_request.filters
     limit = search_request.limit or 20
 
-    # Build filter parameters
-    brand_id = filters.brand_id if filters else None
-    source = filters.source if filters else None
-    sentiment = filters.sentiment_label if filters else None
+    # Build filter parameters (directly from request)
+    brand_id = search_request.brand_id
+    source = search_request.source
+    sentiment = search_request.sentiment
 
     # Execute search
     search_results = es_client.search_mentions(

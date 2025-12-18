@@ -10,7 +10,7 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList, SentimentTrendResponse
+from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList, SentimentTrendResponse, SentimentTrendPoint
 from api.dependencies import get_db_session, NotFoundError
 from models.database import Brand, Mention
 from datetime import datetime, timedelta
@@ -338,8 +338,6 @@ def get_sentiment_trend(
     results = db.exec(statement).all()
 
     # Convert to response format
-    from api.schemas import SentimentTrendPoint
-
     trend_points = [
         SentimentTrendPoint(
             date=row.date,

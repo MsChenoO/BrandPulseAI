@@ -13,7 +13,11 @@ class RedisStreamClient:
 
     # Stream names
     STREAM_MENTIONS_RAW = "mentions:raw"
+    STREAM_MENTIONS_DEDUPLICATED = "mentions:deduplicated"
     STREAM_MENTIONS_PROCESSED = "mentions:processed"
+
+    # Set for deduplication hashes
+    SET_MENTION_HASHES = "mentions:hashes"
 
     def __init__(self, redis_url: Optional[str] = None):
         """
@@ -115,6 +119,89 @@ class RedisStreamClient:
         """
         self.client.xack(self.STREAM_MENTIONS_RAW, consumer_group, message_id)
 
+    def publish_deduplicated_mention(self, mention_data: Dict[str, Any]) -> str:
+        """
+        Publish a deduplicated mention to the mentions:deduplicated stream.
+
+        Args:
+            mention_data: Dictionary containing deduplicated mention data
+
+        Returns:
+            Message ID from Redis
+        """
+        serialized_data = self._serialize_data(mention_data)
+        serialized_data["deduplicated_at"] = datetime.utcnow().isoformat()
+
+        message_id = self.client.xadd(
+            self.STREAM_MENTIONS_DEDUPLICATED,
+            serialized_data,
+            maxlen=10000
+        )
+
+        return message_id
+
+    def consume_deduplicated_mentions(
+        self,
+        consumer_group: str,
+        consumer_name: str,
+        block_ms: int = 5000,
+        count: int = 10
+    ):
+        """
+        Consume messages from mentions:deduplicated stream using consumer groups.
+
+        Args:
+            consumer_group: Name of the consumer group
+            consumer_name: Name of this consumer instance
+            block_ms: Block for this many milliseconds if no messages
+            count: Maximum number of messages to retrieve
+
+        Yields:
+            Tuples of (message_id, message_data)
+        """
+        # Create consumer group if it doesn't exist
+        try:
+            self.client.xgroup_create(
+                self.STREAM_MENTIONS_DEDUPLICATED,
+                consumer_group,
+                id='0',
+                mkstream=True
+            )
+        except redis.exceptions.ResponseError as e:
+            # Group already exists
+            if "BUSYGROUP" not in str(e):
+                raise
+
+        while True:
+            # Read messages
+            messages = self.client.xreadgroup(
+                consumer_group,
+                consumer_name,
+                {self.STREAM_MENTIONS_DEDUPLICATED: '>'},
+                count=count,
+                block=block_ms
+            )
+
+            if not messages:
+                continue
+
+            # Process messages
+            for stream_name, stream_messages in messages:
+                for message_id, message_data in stream_messages:
+                    # Deserialize data
+                    deserialized_data = self._deserialize_data(message_data)
+                    yield message_id, deserialized_data
+
+    def acknowledge_deduplicated_message(self, consumer_group: str, message_id: str):
+        """
+        Acknowledge that a deduplicated message has been processed.
+
+        Args:
+            consumer_group: Name of the consumer group
+            message_id: ID of the message to acknowledge
+        """
+        self.client.xack(self.STREAM_MENTIONS_DEDUPLICATED, consumer_group, message_id)
+
     def publish_processed_mention(self, mention_data: Dict[str, Any]) -> str:
         """
         Publish a processed mention to the mentions:processed stream.
@@ -135,6 +222,27 @@ class RedisStreamClient:
         )
 
         return message_id
+
+    def check_mention_hash(self, mention_hash: str) -> bool:
+        """
+        Check if a mention hash already exists in the deduplication set.
+
+        Args:
+            mention_hash: Hash of the mention (URL + title)
+
+        Returns:
+            True if hash exists (duplicate), False if new
+        """
+        return self.client.sismember(self.SET_MENTION_HASHES, mention_hash)
+
+    def add_mention_hash(self, mention_hash: str):
+        """
+        Add a mention hash to the deduplication set.
+
+        Args:
+            mention_hash: Hash of the mention (URL + title)
+        """
+        self.client.sadd(self.SET_MENTION_HASHES, mention_hash)
 
     def _serialize_data(self, data: Dict[str, Any]) -> Dict[str, str]:
         """Convert data to Redis-compatible format (all strings)"""

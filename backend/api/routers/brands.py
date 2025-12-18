@@ -163,3 +163,106 @@ def get_brand(
         created_at=brand.created_at,
         mention_count=None  # TODO: Add count query
     )
+
+
+# ============================================================================
+# GET /brands/{brand_id}/mentions - Get mentions for a brand
+# ============================================================================
+
+@router.get(
+    "/{brand_id}/mentions",
+    response_model=MentionList,
+    summary="Get mentions for a brand",
+    description="""
+    Returns all mentions for a specific brand with optional filtering.
+
+    Filters:
+    - source: Filter by source (google_news, hackernews)
+    - sentiment: Filter by sentiment label
+    - limit/offset: Pagination
+    """
+)
+def get_brand_mentions(
+    brand_id: int,
+    db: Session = Depends(get_db_session),
+    source: Optional[str] = Query(None, description="Filter by source"),
+    sentiment: Optional[str] = Query(None, description="Filter by sentiment label"),
+    limit: int = Query(20, le=100, description="Maximum results"),
+    offset: int = Query(0, ge=0, description="Pagination offset")
+) -> MentionList:
+    """
+    Get mentions for a brand with optional filters.
+
+    Args:
+        brand_id: Brand ID
+        db: Database session
+        source: Optional source filter
+        sentiment: Optional sentiment filter
+        limit: Maximum results
+        offset: Pagination offset
+
+    Returns:
+        Paginated list of mentions
+
+    Raises:
+        404: Brand not found
+    """
+    # Check if brand exists
+    brand = db.get(Brand, brand_id)
+    if not brand:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Brand with ID {brand_id} not found"
+        )
+
+    # Build query
+    statement = select(Mention).where(Mention.brand_id == brand_id)
+
+    # Apply filters
+    if source:
+        statement = statement.where(Mention.source == source)
+
+    if sentiment:
+        statement = statement.where(Mention.sentiment_label == sentiment)
+
+    # Get total count (before pagination)
+    count_statement = statement
+    total = len(db.exec(count_statement).all())
+
+    # Apply pagination
+    statement = statement.offset(offset).limit(limit)
+
+    # Execute query
+    mentions = db.exec(statement).all()
+
+    # Convert to response models
+    mention_responses = [
+        MentionResponse(
+            id=mention.id,
+            brand_id=mention.brand_id,
+            brand_name=brand.name,
+            source=mention.source,
+            title=mention.title,
+            url=mention.url,
+            content=mention.content,
+            sentiment_score=mention.sentiment_score,
+            sentiment_label=mention.sentiment_label,
+            published_date=mention.published_date,
+            ingested_date=mention.ingested_date,
+            processed_date=mention.processed_date,
+            author=mention.author,
+            points=mention.points,
+            highlights=None  # No highlights for database query
+        )
+        for mention in mentions
+    ]
+
+    # Calculate pagination info
+    page = (offset // limit) + 1 if limit > 0 else 1
+
+    return MentionList(
+        mentions=mention_responses,
+        total=total,
+        page=page,
+        page_size=limit
+    )

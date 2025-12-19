@@ -207,6 +207,28 @@ Reason: [one sentence explanation]
         )
         print(f"    → Sentiment: {sentiment_label} ({sentiment_score:+.2f})")
 
+        # Phase 4: Generate embedding for semantic search
+        embedding_text = self.embedding_service.prepare_text_for_embedding(
+            mention_data['title'],
+            content
+        )
+        embedding = await self.embedding_service.generate_embedding(embedding_text)
+        if embedding:
+            print(f"    → Embedding: Generated (768 dimensions)")
+        else:
+            print(f"    ⚠ Embedding: Failed to generate")
+
+        # Phase 4: Extract entities
+        entities = self.entity_service.extract_entities(
+            mention_data['title'],
+            content[:1000] if content else None  # Limit content for entity extraction
+        )
+        if entities:
+            entity_count = sum(len(v) for v in entities.values())
+            print(f"    → Entities: Extracted {entity_count} entities")
+        else:
+            print(f"    ⚠ Entities: None extracted")
+
         # Save to database
         with get_session(self.engine) as session:
             # Get or create brand

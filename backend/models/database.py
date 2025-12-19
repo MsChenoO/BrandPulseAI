@@ -1,10 +1,12 @@
-# Phase 2: Database Models
+# Phase 2-4: Database Models
 # SQLModel schemas for PostgreSQL
 
-from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
+from sqlmodel import SQLModel, Field, Relationship, Column
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import JSON
 
 
 class SentimentLabel(str, Enum):
@@ -61,6 +63,10 @@ class Mention(SQLModel, table=True):
     # Additional metadata (source-specific)
     author: Optional[str] = Field(default=None, max_length=255)
     points: Optional[int] = Field(default=None)  # HackerNews points
+
+    # Phase 4: Semantic Search & AI Enhancements
+    embedding: Optional[Any] = Field(default=None, sa_column=Column(Vector(768)))  # 768-dim vector for nomic-embed-text
+    entities: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))  # Extracted entities
 
     # Relationship
     brand: Brand = Relationship(back_populates="mentions")

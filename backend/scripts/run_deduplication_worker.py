@@ -14,7 +14,10 @@ Usage:
 """
 
 import sys
-sys.path.append('.')
+import os
+
+# Add backend directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from workers.deduplication_worker import main
 

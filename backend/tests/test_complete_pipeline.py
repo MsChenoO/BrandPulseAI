@@ -16,8 +16,10 @@ import sys
 import time
 import requests
 from datetime import datetime
+import os
 
-sys.path.append('.')
+# Add backend directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.redis_client import RedisStreamClient
 from models.database import get_engine, Brand, Mention

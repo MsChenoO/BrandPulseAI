@@ -1,5 +1,6 @@
-# Phase 2/3: Sentiment Analysis Worker
-# Consumes enriched mentions from Redis Streams, analyzes sentiment, persists to PostgreSQL, and indexes to Elasticsearch
+# Phase 2/3/4: Sentiment Analysis Worker
+# Consumes enriched mentions from Redis Streams, analyzes sentiment, generates embeddings,
+# extracts entities, persists to PostgreSQL, and indexes to Elasticsearch
 
 import asyncio
 import httpx
@@ -16,6 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.redis_client import RedisStreamClient
 from shared.elasticsearch_client import ElasticsearchClient, MENTIONS_INDEX
+from shared.embedding_service import EmbeddingService
+from shared.entity_extraction_service import EntityExtractionService
 from models.database import (
     get_engine, create_db_and_tables, get_session,
     Brand, Mention, SentimentLabel, Source
@@ -64,15 +67,22 @@ class SentimentWorker:
         self.llm = ChatOllama(model=ollama_model)
         self.ollama_model = ollama_model
 
+        # Phase 4: Embedding service for semantic search
+        self.embedding_service = EmbeddingService()
+
+        # Phase 4: Entity extraction service
+        self.entity_service = EntityExtractionService(model=ollama_model)
+
         # Worker identity
         self.consumer_group = "sentiment-workers"
         self.consumer_name = consumer_name
 
-        print(f"✓ Sentiment Worker initialized")
+        print(f"✓ Sentiment Worker initialized (Phase 4)")
         print(f"  - Redis: {self.redis_client.redis_url}")
         print(f"  - Database: {database_url}")
         print(f"  - Elasticsearch: {self.es_client.es_url}")
         print(f"  - LLM Model: {ollama_model}")
+        print(f"  - Embedding Model: nomic-embed-text (768-dim)")
         print(f"  - Consumer: {consumer_name}")
 
     async def fetch_url_content(self, url: str) -> str:

@@ -15,7 +15,7 @@ class EmbeddingService:
 
     def __init__(self, ollama_url: str = "http://localhost:11434"):
         self.ollama_url = ollama_url
-        self.model = "nomic-embed-text"  # 768-dimensional embeddings
+        self.model = "nomic-embed-text:latest"  # 768-dimensional embeddings
         self.dimension = 768
 
     async def generate_embedding(self, text: str) -> Optional[List[float]]:

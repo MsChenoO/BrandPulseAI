@@ -264,7 +264,7 @@ Reason: [one sentence explanation]
             session.refresh(mention)
             print(f"    ✓ Saved to database (Mention ID: {mention.id}, Brand ID: {brand.id})")
 
-            # Index to Elasticsearch
+            # Index to Elasticsearch (Phase 4: includes entities)
             es_document = {
                 "mention_id": mention.id,
                 "brand_id": brand.id,
@@ -285,6 +285,8 @@ Reason: [one sentence explanation]
                 "word_count": mention_data.get('word_count'),
                 "reading_time_minutes": mention_data.get('reading_time_minutes'),
                 "quality_score": mention_data.get('quality_score'),
+                # Phase 4: Include entities for enhanced search
+                "entities": entities if entities else {}
             }
 
             try:

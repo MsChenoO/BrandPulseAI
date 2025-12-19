@@ -240,7 +240,7 @@ Reason: [one sentence explanation]
                 print(f"    ⚠ Mention already exists in database (ID: {existing.id})")
                 return
 
-            # Create mention
+            # Create mention (Phase 4: includes embedding and entities)
             mention = Mention(
                 brand_id=brand.id,
                 source=Source(mention_data['source']),
@@ -253,7 +253,10 @@ Reason: [one sentence explanation]
                 ingested_date=mention_data.get('ingested_at') or datetime.utcnow(),
                 processed_date=datetime.utcnow(),
                 author=mention_data.get('author'),
-                points=mention_data.get('points')
+                points=mention_data.get('points'),
+                # Phase 4: Semantic search and AI enhancements
+                embedding=embedding,  # 768-dim vector for pgvector
+                entities=entities  # Extracted named entities as JSON
             )
 
             session.add(mention)

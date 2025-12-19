@@ -59,7 +59,7 @@ class SentimentWorker:
         create_db_and_tables(self.engine)
 
         # Elasticsearch setup
-        self.es_client = ElasticsearchClient(elasticsearch_url=elasticsearch_url)
+        self.es_client = ElasticsearchClient(es_url=elasticsearch_url)
         # Ensure index exists
         self.es_client.create_index(MENTIONS_INDEX)
 

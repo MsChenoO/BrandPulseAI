@@ -1,9 +1,9 @@
 services:
   # ============================================================================
-  # PostgreSQL Database
+  # PostgreSQL Database with pgvector
   # ============================================================================
   postgres:
-    image: postgres:15-alpine
+    image: ankane/pgvector:v0.5.1
     container_name: brandpulse-postgres
     environment:
       POSTGRES_USER: brandpulse
@@ -13,6 +13,7 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U brandpulse"]
       interval: 10s

@@ -205,7 +205,11 @@ async def semantic_search(
 
     # Initialize services
     embedding_service = EmbeddingService()
-    engine = get_engine()
+    database_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql://brandpulse:brandpulse_dev_password@localhost:5433/brandpulse"
+    )
+    engine = get_engine(database_url)
 
     # Generate embedding for query
     query_embedding = await embedding_service.generate_embedding(search_request.query)
@@ -322,7 +326,11 @@ async def hybrid_search(
     # Initialize services
     embedding_service = EmbeddingService()
     es_client = ElasticsearchClient()
-    engine = get_engine()
+    database_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql://brandpulse:brandpulse_dev_password@localhost:5433/brandpulse"
+    )
+    engine = get_engine(database_url)
 
     # Extract parameters
     query = search_request.query

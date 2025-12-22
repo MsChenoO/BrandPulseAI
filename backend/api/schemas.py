@@ -228,3 +228,116 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     status_code: int
+
+
+# ============================================================================
+# Phase 4: Semantic Search Schemas
+# ============================================================================
+
+class SemanticSearchRequest(BaseModel):
+    """Schema for semantic search request"""
+    query: str = Field(..., min_length=1, description="Text query for semantic similarity search")
+    brand_id: Optional[int] = Field(None, description="Filter by brand ID")
+    source: Optional[SourceEnum] = Field(None, description="Filter by source")
+    sentiment: Optional[SentimentLabelEnum] = Field(None, description="Filter by sentiment")
+    limit: int = Field(default=10, le=50, description="Maximum results (max 50)")
+    similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Minimum cosine similarity (0.0-1.0)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "breakthrough in battery technology",
+                "brand_id": 1,
+                "limit": 10,
+                "similarity_threshold": 0.7
+            }
+        }
+
+
+class SemanticMentionResponse(MentionResponse):
+    """Schema for mention with semantic similarity score"""
+    similarity_score: float = Field(..., ge=0.0, le=1.0, description="Cosine similarity score (0.0-1.0)")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "brand_id": 1,
+                "brand_name": "Tesla",
+                "source": "google_news",
+                "title": "Tesla announces new battery technology",
+                "url": "https://example.com/article",
+                "similarity_score": 0.87
+            }
+        }
+
+
+class SemanticSearchResponse(BaseModel):
+    """Schema for semantic search response"""
+    results: List[SemanticMentionResponse]
+    total: int
+    query: str = Field(..., description="Original search query")
+    took_ms: int = Field(..., description="Search time in milliseconds")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "results": [],
+                "total": 5,
+                "query": "battery technology",
+                "took_ms": 45
+            }
+        }
+
+
+class HybridSearchRequest(BaseModel):
+    """Schema for hybrid search request (combines keyword + semantic)"""
+    query: str = Field(..., min_length=1, description="Search query text")
+    brand_id: Optional[int] = Field(None, description="Filter by brand ID")
+    source: Optional[SourceEnum] = Field(None, description="Filter by source")
+    sentiment: Optional[SentimentLabelEnum] = Field(None, description="Filter by sentiment")
+    limit: int = Field(default=20, le=100, description="Maximum results")
+    semantic_weight: float = Field(default=0.5, ge=0.0, le=1.0, description="Weight for semantic vs keyword (0.0=keyword only, 1.0=semantic only)")
+    similarity_threshold: float = Field(default=0.3, ge=0.0, le=1.0, description="Minimum similarity for semantic results")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "electric vehicle innovation",
+                "brand_id": 1,
+                "limit": 20,
+                "semantic_weight": 0.5,
+                "similarity_threshold": 0.3
+            }
+        }
+
+
+class HybridMentionResponse(MentionResponse):
+    """Schema for mention with hybrid search scores"""
+    hybrid_score: float = Field(..., description="Combined hybrid relevance score")
+    keyword_score: Optional[float] = Field(None, description="Elasticsearch keyword score")
+    semantic_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Cosine similarity score")
+
+    class Config:
+        from_attributes = True
+
+
+class HybridSearchResponse(BaseModel):
+    """Schema for hybrid search response"""
+    results: List[HybridMentionResponse]
+    total: int
+    query: str = Field(..., description="Original search query")
+    took_ms: int = Field(..., description="Total search time in milliseconds")
+    semantic_weight: float = Field(..., description="Semantic weight used (0.0-1.0)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "results": [],
+                "total": 15,
+                "query": "electric vehicle",
+                "took_ms": 120,
+                "semantic_weight": 0.5
+            }
+        }

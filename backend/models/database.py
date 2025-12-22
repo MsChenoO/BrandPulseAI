@@ -26,6 +26,18 @@ class Source(str, Enum):
 # Database Tables
 # ============================================================================
 
+class User(SQLModel, table=True):
+    """User entity - for authentication and authorization"""
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True, max_length=255)
+    username: str = Field(index=True, unique=True, max_length=100)
+    hashed_password: str = Field(max_length=255)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Brand(SQLModel, table=True):
     """Brand entity - represents a brand being monitored"""
     __tablename__ = "brands"

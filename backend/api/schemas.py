@@ -341,3 +341,80 @@ class HybridSearchResponse(BaseModel):
                 "semantic_weight": 0.5
             }
         }
+
+
+# ============================================================================
+# Phase 5: Authentication Schemas
+# ============================================================================
+
+class UserCreate(BaseModel):
+    """Schema for user registration"""
+    email: str = Field(..., min_length=3, max_length=255, description="User email address")
+    username: str = Field(..., min_length=3, max_length=100, description="Username")
+    password: str = Field(..., min_length=8, max_length=100, description="Password (min 8 characters)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "username": "johndoe",
+                "password": "securepassword123"
+            }
+        }
+
+
+class UserLogin(BaseModel):
+    """Schema for user login"""
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "password": "securepassword123"
+            }
+        }
+
+
+class UserResponse(BaseModel):
+    """Schema for user response"""
+    id: int
+    email: str
+    username: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "email": "user@example.com",
+                "username": "johndoe",
+                "is_active": True,
+                "created_at": "2025-12-22T10:00:00"
+            }
+        }
+
+
+class Token(BaseModel):
+    """Schema for JWT token response"""
+    access_token: str = Field(..., description="JWT access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    user: UserResponse = Field(..., description="User information")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "token_type": "bearer",
+                "user": {
+                    "id": 1,
+                    "email": "user@example.com",
+                    "username": "johndoe",
+                    "is_active": True,
+                    "created_at": "2025-12-22T10:00:00"
+                }
+            }
+        }

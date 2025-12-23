@@ -10,8 +10,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -25,6 +23,11 @@ venv/
 env/
 ENV/
 .venv
+# Python virtual environment lib folders (but not frontend/lib)
+venv/lib/
+env/lib/
+ENV/lib/
+.venv/lib/
 
 # Environment variables
 .env

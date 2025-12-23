@@ -11,12 +11,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlmodel import Session, create_engine, select
 from models.database import User
-from config import settings
 
 def list_users():
     """List all users in the database"""
+    # Get database URL from environment or use default
+    database_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql://brandpulse:brandpulse_dev_password@localhost:5433/brandpulse"
+    )
+
     # Create engine
-    engine = create_engine(settings.database_url)
+    engine = create_engine(database_url)
 
     with Session(engine) as session:
         # Query all users ordered by ID

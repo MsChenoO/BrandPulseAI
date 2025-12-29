@@ -47,8 +47,11 @@ class Brand(SQLModel, table=True):
     name: str = Field(index=True, unique=True, max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    # Relationship
-    mentions: List["Mention"] = Relationship(back_populates="brand")
+    # Relationship with cascade delete
+    mentions: List["Mention"] = Relationship(
+        back_populates="brand",
+        sa_relationship_kwargs={"cascade": "all, delete", "passive_deletes": True}
+    )
 
 
 class Mention(SQLModel, table=True):

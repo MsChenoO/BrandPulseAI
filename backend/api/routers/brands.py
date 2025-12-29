@@ -204,17 +204,35 @@ def delete_brand(
     Raises:
         404: Brand not found
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Attempting to delete brand with ID: {brand_id}")
+    logger.info(f"Authenticated user: {current_user.username}")
+
     brand = db.get(Brand, brand_id)
 
     if not brand:
+        logger.warning(f"Brand with ID {brand_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Brand with ID {brand_id} not found"
         )
 
-    # Delete the brand (mentions will cascade delete)
-    db.delete(brand)
-    db.commit()
+    logger.info(f"Found brand: {brand.name} (ID: {brand.id})")
+
+    try:
+        # Delete the brand (mentions will cascade delete)
+        db.delete(brand)
+        db.commit()
+        logger.info(f"Successfully deleted brand: {brand.name} (ID: {brand_id})")
+    except Exception as e:
+        logger.error(f"Error deleting brand {brand_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting brand: {str(e)}"
+        )
 
     return None
 

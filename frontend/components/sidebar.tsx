@@ -3,11 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+import { useWebSocketContext } from '@/contexts/websocket-context'
+import { ConnectionStatusIndicator } from '@/components/connection-status'
 import { cn } from '@/lib/utils'
 
 export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const { status } = useWebSocketContext()
 
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: '📊' },

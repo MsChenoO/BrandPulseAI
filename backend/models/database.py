@@ -7,6 +7,7 @@ from datetime import datetime
 from enum import Enum
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import ForeignKey
 
 
 class SentimentLabel(str, Enum):
@@ -55,7 +56,7 @@ class Mention(SQLModel, table=True):
     __tablename__ = "mentions"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    brand_id: int = Field(foreign_key="brands.id", index=True)
+    brand_id: int = Field(sa_column=Column("brand_id", ForeignKey("brands.id", ondelete="CASCADE"), index=True, nullable=False))
 
     # Source metadata
     source: Source = Field(index=True)

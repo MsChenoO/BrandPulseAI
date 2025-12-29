@@ -12,7 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList, SentimentTrendResponse, SentimentTrendPoint
 from api.dependencies import get_db_session, NotFoundError
-from models.database import Brand, Mention
+from models.database import Brand, Mention, User
+from api.routers.auth import get_current_user
 from datetime import datetime, timedelta
 from sqlmodel import func
 from sqlalchemy import case
@@ -165,6 +166,57 @@ def get_brand(
         created_at=brand.created_at,
         mention_count=None  # TODO: Add count query
     )
+
+
+# ============================================================================
+# DELETE /brands/{brand_id} - Delete a brand
+# ============================================================================
+
+@router.delete(
+    "/{brand_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a brand",
+    description="""
+    Deletes a brand and all associated mentions.
+
+    **Requires authentication.**
+    """
+)
+def delete_brand(
+    brand_id: int,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a brand by ID.
+
+    This will also delete all mentions associated with the brand due to
+    CASCADE delete rules in the database.
+
+    Args:
+        brand_id: Brand ID to delete
+        db: Database session
+        current_user: Authenticated user (required)
+
+    Returns:
+        204 No Content on success
+
+    Raises:
+        404: Brand not found
+    """
+    brand = db.get(Brand, brand_id)
+
+    if not brand:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Brand with ID {brand_id} not found"
+        )
+
+    # Delete the brand (mentions will cascade delete)
+    db.delete(brand)
+    db.commit()
+
+    return None
 
 
 # ============================================================================

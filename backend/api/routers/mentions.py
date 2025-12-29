@@ -127,11 +127,14 @@ def list_mentions(
         for m in mentions
     ]
 
+    # Calculate page number (offset / limit + 1)
+    page = (offset // limit) + 1 if limit > 0 else 1
+
     return MentionList(
         mentions=mention_responses,
         total=total,
-        limit=limit,
-        offset=offset
+        page=page,
+        page_size=limit
     )
 
 
@@ -237,8 +240,8 @@ def get_recent_mentions_for_brand(
     return MentionList(
         mentions=mention_responses,
         total=total,
-        limit=limit,
-        offset=0
+        page=1,
+        page_size=limit
     )
 
 

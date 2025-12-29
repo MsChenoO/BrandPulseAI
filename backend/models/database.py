@@ -38,13 +38,17 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Relationship
+    brands: List["Brand"] = Relationship(back_populates="user")
+
 
 class Brand(SQLModel, table=True):
     """Brand entity - represents a brand being monitored"""
     __tablename__ = "brands"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True, max_length=255)
+    name: str = Field(index=True, max_length=255)
+    user_id: int = Field(sa_column=Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False))
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationship with cascade delete
@@ -52,6 +56,7 @@ class Brand(SQLModel, table=True):
         back_populates="brand",
         sa_relationship_kwargs={"cascade": "all, delete", "passive_deletes": True}
     )
+    user: "User" = Relationship(back_populates="brands")
 
 
 class Mention(SQLModel, table=True):

@@ -119,6 +119,7 @@ def list_mentions(
             sentiment_score=m.sentiment_score,
             sentiment_label=m.sentiment_label.value,
             published_date=m.published_date,
+            ingested_date=m.ingested_date,
             processed_date=m.processed_date,
             author=m.author,
             points=m.points

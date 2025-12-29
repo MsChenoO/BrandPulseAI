@@ -1,9 +1,24 @@
 'use client'
 
 import { useAuth } from '@/contexts/auth-context'
+import { useWebSocketContext } from '@/contexts/websocket-context'
+import { MentionFeed } from '@/components/mention-feed'
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { dashboardStats, realtimeMentions } = useWebSocketContext()
+
+  // Calculate real-time stats from mentions if no stats from server
+  const totalMentions = dashboardStats?.total_mentions ?? realtimeMentions.length
+  const positiveCount =
+    dashboardStats?.positive_count ??
+    realtimeMentions.filter((m) => m.sentiment_label.toLowerCase() === 'positive').length
+  const neutralCount =
+    dashboardStats?.neutral_count ??
+    realtimeMentions.filter((m) => m.sentiment_label.toLowerCase() === 'neutral').length
+  const negativeCount =
+    dashboardStats?.negative_count ??
+    realtimeMentions.filter((m) => m.sentiment_label.toLowerCase() === 'negative').length
 
   return (
     <div className="space-y-8">
@@ -14,42 +29,56 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Real-time Metrics */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 transition-all hover:shadow-md">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-zinc-600">Total Mentions</p>
             <span className="text-2xl">📊</span>
           </div>
-          <p className="mt-2 text-3xl font-bold text-zinc-900">-</p>
-          <p className="mt-1 text-xs text-zinc-500">Coming soon</p>
+          <p className="mt-2 text-3xl font-bold text-zinc-900">{totalMentions}</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {dashboardStats ? 'Live data' : 'Real-time count'}
+          </p>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 transition-all hover:shadow-md">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-zinc-600">Positive</p>
             <span className="text-2xl">😊</span>
           </div>
-          <p className="mt-2 text-3xl font-bold text-green-600">-</p>
-          <p className="mt-1 text-xs text-zinc-500">Coming soon</p>
+          <p className="mt-2 text-3xl font-bold text-green-600">{positiveCount}</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {totalMentions > 0 ? `${((positiveCount / totalMentions) * 100).toFixed(0)}%` : '0%'}
+          </p>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 transition-all hover:shadow-md">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-zinc-600">Neutral</p>
             <span className="text-2xl">😐</span>
           </div>
-          <p className="mt-2 text-3xl font-bold text-zinc-600">-</p>
-          <p className="mt-1 text-xs text-zinc-500">Coming soon</p>
+          <p className="mt-2 text-3xl font-bold text-zinc-600">{neutralCount}</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {totalMentions > 0 ? `${((neutralCount / totalMentions) * 100).toFixed(0)}%` : '0%'}
+          </p>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 transition-all hover:shadow-md">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-zinc-600">Negative</p>
             <span className="text-2xl">😞</span>
           </div>
-          <p className="mt-2 text-3xl font-bold text-red-600">-</p>
-          <p className="mt-1 text-xs text-zinc-500">Coming soon</p>
+          <p className="mt-2 text-3xl font-bold text-red-600">{negativeCount}</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {totalMentions > 0 ? `${((negativeCount / totalMentions) * 100).toFixed(0)}%` : '0%'}
+          </p>
         </div>
+      </div>
+
+      {/* Live Mention Feed */}
+      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <MentionFeed maxItems={10} />
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">

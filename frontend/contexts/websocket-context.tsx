@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useCallback, useState, useEffect } from 'react'
 import { useWebSocket, ConnectionStatus, WebSocketMessage } from '@/hooks/useWebSocket'
+import { api } from '@/lib/api'
 
 interface Mention {
   id: number
@@ -125,6 +126,40 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const clearMentions = useCallback(() => {
     setRealtimeMentions([])
   }, [])
+
+  // Phase 5: Load initial data from database on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        console.log('Loading initial mentions from database...')
+
+        // Load recent mentions (last 50)
+        const mentionsResponse = await api.getRecentMentions(undefined, 50)
+        if (mentionsResponse.mentions && mentionsResponse.mentions.length > 0) {
+          setRealtimeMentions(mentionsResponse.mentions)
+          console.log(`Loaded ${mentionsResponse.mentions.length} initial mentions`)
+        }
+
+        // Load sentiment stats
+        const stats = await api.getSentimentStats(undefined, 30)
+        setDashboardStats({
+          total_mentions: stats.total_mentions,
+          positive_count: stats.positive_count,
+          neutral_count: stats.neutral_count,
+          negative_count: stats.negative_count,
+          new_today: 0, // We don't have this from stats endpoint
+        })
+        console.log('Loaded dashboard stats:', stats)
+
+        setLastUpdate(new Date().toISOString())
+      } catch (error) {
+        console.error('Error loading initial data:', error)
+        // Don't fail the component if initial load fails
+      }
+    }
+
+    loadInitialData()
+  }, []) // Run once on mount
 
   const value: WebSocketContextType = {
     status,

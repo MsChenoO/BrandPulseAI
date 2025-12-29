@@ -67,6 +67,12 @@ async def startup_event():
     print("🚀 BrandPulse API starting up...")
     print("📚 API Documentation: http://localhost:8000/docs")
 
+    # Initialize WebSocket service with connection manager
+    from services.websocket_service import websocket_service
+    from api.routers.websocket import manager
+    websocket_service.set_manager(manager)
+    print("🔌 WebSocket service initialized")
+
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():

@@ -46,6 +46,9 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-zinc-200 p-4">
+        <div className="mb-3">
+          <ConnectionStatusIndicator status={status} />
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-zinc-900 truncate">

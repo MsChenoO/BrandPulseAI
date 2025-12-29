@@ -168,6 +168,7 @@ def get_mention(
         sentiment_score=mention.sentiment_score,
         sentiment_label=mention.sentiment_label.value,
         published_date=mention.published_date,
+        ingested_date=mention.ingested_date,
         processed_date=mention.processed_date,
         author=mention.author,
         points=mention.points
@@ -225,6 +226,7 @@ def get_recent_mentions_for_brand(
             sentiment_score=m.sentiment_score,
             sentiment_label=m.sentiment_label.value,
             published_date=m.published_date,
+            ingested_date=m.ingested_date,
             processed_date=m.processed_date,
             author=m.author,
             points=m.points

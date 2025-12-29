@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 # Import routers
-from api.routers import brands, search, auth, websocket
+from api.routers import brands, search, auth, websocket, testing
 # from api.routers import mentions  # Will create this next
 
 # Create FastAPI app
@@ -56,6 +56,7 @@ app.include_router(auth.router)
 app.include_router(brands.router)
 app.include_router(search.router)
 app.include_router(websocket.router)
+app.include_router(testing.router)  # Development only
 # app.include_router(mentions.router, prefix="/mentions", tags=["Mentions"])  # TODO
 
 # Startup event

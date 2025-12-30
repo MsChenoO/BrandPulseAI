@@ -125,18 +125,23 @@ def list_brands(
     statement = select(Brand).where(Brand.user_id == current_user.id)
     brands = db.exec(statement).all()
 
-    # Convert to response models
-    # Note: mention_count would require a join with Mention table
-    # For now, we'll leave it as None
-    return [
-        BrandResponse(
-            id=brand.id,
-            name=brand.name,
-            created_at=brand.created_at,
-            mention_count=None  # TODO: Add count query
+    # Calculate mention count for each brand
+    brand_responses = []
+    for brand in brands:
+        # Count mentions for this brand
+        count_statement = select(func.count(Mention.id)).where(Mention.brand_id == brand.id)
+        mention_count = db.exec(count_statement).one()
+
+        brand_responses.append(
+            BrandResponse(
+                id=brand.id,
+                name=brand.name,
+                created_at=brand.created_at,
+                mention_count=mention_count
+            )
         )
-        for brand in brands
-    ]
+
+    return brand_responses
 
 
 # ============================================================================
@@ -180,11 +185,15 @@ def get_brand(
             detail=f"Brand with ID {brand_id} not found"
         )
 
+    # Count mentions for this brand
+    count_statement = select(func.count(Mention.id)).where(Mention.brand_id == brand.id)
+    mention_count = db.exec(count_statement).one()
+
     return BrandResponse(
         id=brand.id,
         name=brand.name,
         created_at=brand.created_at,
-        mention_count=None  # TODO: Add count query
+        mention_count=mention_count
     )
 
 

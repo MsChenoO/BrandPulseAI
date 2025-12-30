@@ -189,6 +189,51 @@ def get_brand(
 
 
 # ============================================================================
+# DELETE /brands/{brand_id} - Delete a brand
+# ============================================================================
+
+@router.delete(
+    "/{brand_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a brand",
+    description="""
+    Deletes a brand and all its associated mentions.
+
+    Only the brand owner can delete the brand.
+
+    **Requires authentication.**
+    """
+)
+def delete_brand(
+    brand_id: int,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
+) -> None:
+    """
+    Delete a brand by ID.
+
+    Args:
+        brand_id: Brand ID
+        db: Database session
+        current_user: Authenticated user
+
+    Raises:
+        404: Brand not found or not owned by user
+    """
+    brand = db.get(Brand, brand_id)
+
+    if not brand or brand.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Brand with ID {brand_id} not found"
+        )
+
+    # Delete the brand (mentions will be cascade deleted)
+    db.delete(brand)
+    db.commit()
+
+
+# ============================================================================
 # GET /brands/{brand_id}/mentions - Get mentions for a brand
 # ============================================================================
 

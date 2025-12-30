@@ -11,6 +11,7 @@ export default function BrandsPage() {
   const [newBrandName, setNewBrandName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   const { data, error: fetchError, mutate } = useSWR('/brands', () => api.getBrands())
 
@@ -30,13 +31,17 @@ export default function BrandsPage() {
     }
   }
 
-  const handleDeleteBrand = async (id: number) => {
+  const handleDeleteBrand = async (id: number, brandName: string) => {
     if (!confirm('Are you sure you want to delete this brand?')) return
 
     try {
       await api.deleteBrand(id)
+      setError('')
+      setSuccessMessage(`${brandName} has been deleted successfully`)
+      setTimeout(() => setSuccessMessage(''), 3000)
       mutate()
     } catch (err: any) {
+      setSuccessMessage('')
       alert(err.error || err.detail || 'Failed to delete brand')
     }
   }
@@ -49,6 +54,15 @@ export default function BrandsPage() {
           Manage the brands you are tracking
         </p>
       </div>
+
+      {successMessage && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-green-600">✓</span>
+            <p className="text-sm font-medium text-green-800">{successMessage}</p>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-zinc-900">Add New Brand</h2>
@@ -111,7 +125,7 @@ export default function BrandsPage() {
                   View Details
                 </button>
                 <button
-                  onClick={() => handleDeleteBrand(brand.id)}
+                  onClick={() => handleDeleteBrand(brand.id, brand.name)}
                   className="rounded-md px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                 >
                   Delete

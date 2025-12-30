@@ -12,7 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from api.schemas import BrandCreate, BrandResponse, MentionResponse, MentionList, SentimentTrendResponse, SentimentTrendPoint
 from api.dependencies import get_db_session, NotFoundError
-from models.database import Brand, Mention
+from models.database import Brand, Mention, User
+from api.routers.auth import get_current_user
 from datetime import datetime, timedelta
 from sqlmodel import func
 from sqlalchemy import case
@@ -35,12 +36,15 @@ router = APIRouter(
     description="""
     Creates a new brand for monitoring.
 
-    The brand name must be unique. If the brand already exists, returns 400 error.
+    The brand name must be unique for this user.
+
+    **Requires authentication.**
     """
 )
 def create_brand(
     brand_data: BrandCreate,
-    db: Session = Depends(get_db_session)
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
 ) -> BrandResponse:
     """
     Create a new brand for tracking.
@@ -48,15 +52,19 @@ def create_brand(
     Args:
         brand_data: Brand creation data (name)
         db: Database session
+        current_user: Authenticated user
 
     Returns:
         Created brand with ID and timestamp
 
     Raises:
-        400: Brand already exists
+        400: Brand already exists for this user
     """
-    # Check if brand already exists
-    statement = select(Brand).where(Brand.name == brand_data.name)
+    # Check if brand already exists for this user
+    statement = select(Brand).where(
+        Brand.name == brand_data.name,
+        Brand.user_id == current_user.id
+    )
     existing_brand = db.exec(statement).first()
 
     if existing_brand:
@@ -65,9 +73,10 @@ def create_brand(
             detail=f"Brand '{brand_data.name}' already exists"
         )
 
-    # Create new brand
+    # Create new brand for this user
     new_brand = Brand(
         name=brand_data.name,
+        user_id=current_user.id,
         created_at=datetime.utcnow()
     )
 
@@ -93,21 +102,27 @@ def create_brand(
     "",
     response_model=List[BrandResponse],
     summary="List all brands",
-    description="Returns all brands being monitored, with optional mention counts."
+    description="""
+    Returns all brands being monitored by the current user.
+
+    **Requires authentication.**
+    """
 )
 def list_brands(
-    db: Session = Depends(get_db_session)
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
 ) -> List[BrandResponse]:
     """
-    List all brands.
+    List all brands for the current user.
 
     Args:
         db: Database session
+        current_user: Authenticated user
 
     Returns:
-        List of all brands
+        List of user's brands
     """
-    statement = select(Brand)
+    statement = select(Brand).where(Brand.user_id == current_user.id)
     brands = db.exec(statement).all()
 
     # Convert to response models
@@ -132,11 +147,16 @@ def list_brands(
     "/{brand_id}",
     response_model=BrandResponse,
     summary="Get a brand by ID",
-    description="Returns details of a specific brand."
+    description="""
+    Returns details of a specific brand owned by the current user.
+
+    **Requires authentication.**
+    """
 )
 def get_brand(
     brand_id: int,
-    db: Session = Depends(get_db_session)
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
 ) -> BrandResponse:
     """
     Get a brand by ID.
@@ -144,16 +164,17 @@ def get_brand(
     Args:
         brand_id: Brand ID
         db: Database session
+        current_user: Authenticated user
 
     Returns:
         Brand details
 
     Raises:
-        404: Brand not found
+        404: Brand not found or not owned by user
     """
     brand = db.get(Brand, brand_id)
 
-    if not brand:
+    if not brand or brand.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Brand with ID {brand_id} not found"

@@ -18,43 +18,6 @@ export default function DashboardPage() {
 
   const brands = brandsData?.brands || []
 
-  // Fetch mentions for each brand to calculate metrics
-  const brandMetrics = brands.map((brand: Brand) => {
-    const { data: mentions } = useSWR(
-      `/brands/${brand.id}/mentions`,
-      () => api.getMentions(brand.id, { limit: 100 })
-    )
-    return { brand, mentions: mentions?.mentions || [] }
-  })
-
-  // Calculate overall statistics
-  const totalMentions = brandMetrics.reduce(
-    (sum, { mentions }) => sum + mentions.length,
-    0
-  )
-  const totalPositive = brandMetrics.reduce(
-    (sum, { mentions }) =>
-      sum + mentions.filter((m) => m.sentiment_label === 'Positive').length,
-    0
-  )
-  const totalNeutral = brandMetrics.reduce(
-    (sum, { mentions }) =>
-      sum + mentions.filter((m) => m.sentiment_label === 'Neutral').length,
-    0
-  )
-  const totalNegative = brandMetrics.reduce(
-    (sum, { mentions }) =>
-      sum + mentions.filter((m) => m.sentiment_label === 'Negative').length,
-    0
-  )
-
-  // Calculate health score for a brand
-  const calculateHealth = (mentions: any[]) => {
-    if (mentions.length === 0) return 0
-    const positive = mentions.filter((m) => m.sentiment_label === 'Positive').length
-    return Math.round(40 + (positive / mentions.length) * 60)
-  }
-
   return (
     <div className="space-y-8">
       <div>
@@ -64,61 +27,18 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Overall Statistics */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-zinc-600">Total Mentions</p>
-            <span className="text-2xl">📊</span>
-          </div>
-          <p className="mt-2 text-3xl font-bold text-zinc-900">{totalMentions}</p>
-          <p className="mt-1 text-xs text-zinc-500">Across all brands</p>
-        </div>
-
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-zinc-600">Positive</p>
-            <span className="text-2xl">😊</span>
-          </div>
-          <p className="mt-2 text-3xl font-bold text-green-600">{totalPositive}</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            {totalMentions > 0 ? `${((totalPositive / totalMentions) * 100).toFixed(0)}%` : '0%'} of total
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-zinc-600">Neutral</p>
-            <span className="text-2xl">😐</span>
-          </div>
-          <p className="mt-2 text-3xl font-bold text-zinc-600">{totalNeutral}</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            {totalMentions > 0 ? `${((totalNeutral / totalMentions) * 100).toFixed(0)}%` : '0%'} of total
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-zinc-600">Negative</p>
-            <span className="text-2xl">😞</span>
-          </div>
-          <p className="mt-2 text-3xl font-bold text-red-600">{totalNegative}</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            {totalMentions > 0 ? `${((totalNegative / totalMentions) * 100).toFixed(0)}%` : '0%'} of total
-          </p>
-        </div>
-      </div>
-
       {/* Brand Cards Grid */}
       <div>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-zinc-900">Your Brands</h2>
-          <button
-            onClick={() => router.push('/dashboard/brands')}
-            className="text-sm font-medium text-zinc-900 hover:text-zinc-700"
-          >
-            View All →
-          </button>
+          {brands.length > 0 && (
+            <button
+              onClick={() => router.push('/dashboard/brands')}
+              className="text-sm font-medium text-zinc-900 hover:text-zinc-700"
+            >
+              Manage All →
+            </button>
+          )}
         </div>
 
         {brandsError && (
@@ -128,116 +48,112 @@ export default function DashboardPage() {
         )}
 
         {!brandsError && brands.length === 0 && (
-          <div className="rounded-lg border border-zinc-200 bg-white p-6">
-            <h3 className="text-xl font-semibold text-zinc-900">Getting Started</h3>
-            <div className="mt-4 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
-                  1
+          <div className="rounded-lg border border-zinc-200 bg-white p-8">
+            <div className="text-center">
+              <div className="text-6xl mb-4">🎯</div>
+              <h3 className="text-xl font-semibold text-zinc-900 mb-2">Welcome to BrandPulse</h3>
+              <p className="text-zinc-600 mb-6 max-w-md mx-auto">
+                Start monitoring your brand's online presence. Track mentions, analyze sentiment, and gain valuable insights.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-6 md:grid-cols-3 max-w-3xl mx-auto">
+              <div className="text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-xl mx-auto mb-3">
+                  1️⃣
                 </div>
-                <div>
-                  <p className="font-medium text-zinc-900">Add your first brand</p>
-                  <p className="text-sm text-zinc-600">
-                    Go to the Brands page to start tracking mentions for your brand
-                  </p>
-                </div>
+                <p className="font-medium text-zinc-900 mb-1">Add Your Brand</p>
+                <p className="text-sm text-zinc-600">
+                  Start by adding the brands you want to monitor
+                </p>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
-                  2
+
+              <div className="text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-xl mx-auto mb-3">
+                  2️⃣
                 </div>
-                <div>
-                  <p className="font-medium text-zinc-900">Monitor sentiment</p>
-                  <p className="text-sm text-zinc-600">
-                    Track real-time sentiment analysis and brand health scores
-                  </p>
-                </div>
+                <p className="font-medium text-zinc-900 mb-1">Track Mentions</p>
+                <p className="text-sm text-zinc-600">
+                  Collect mentions from news and social media
+                </p>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
-                  3
+
+              <div className="text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-xl mx-auto mb-3">
+                  3️⃣
                 </div>
-                <div>
-                  <p className="font-medium text-zinc-900">Analyze insights</p>
-                  <p className="text-sm text-zinc-600">
-                    View AI-powered insights, trends, and search through mentions
-                  </p>
-                </div>
+                <p className="font-medium text-zinc-900 mb-1">Analyze Insights</p>
+                <p className="text-sm text-zinc-600">
+                  View sentiment trends and AI-powered insights
+                </p>
               </div>
-              <div className="mt-6">
-                <button
-                  onClick={() => router.push('/dashboard/brands')}
-                  className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-                >
-                  Add Your First Brand
-                </button>
-              </div>
+            </div>
+
+            <div className="mt-8 text-center">
+              <button
+                onClick={() => router.push('/dashboard/brands')}
+                className="inline-flex items-center gap-2 rounded-md bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:bg-zinc-800 transition-colors"
+              >
+                Add Your First Brand
+                <span>→</span>
+              </button>
             </div>
           </div>
         )}
 
         {brands.length > 0 && (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {brandMetrics.map(({ brand, mentions }) => {
-              const health = calculateHealth(mentions)
-              const positive = mentions.filter((m) => m.sentiment_label === 'Positive').length
-              const neutral = mentions.filter((m) => m.sentiment_label === 'Neutral').length
-              const negative = mentions.filter((m) => m.sentiment_label === 'Negative').length
-
-              const healthColor =
-                health >= 80
-                  ? 'text-green-600'
-                  : health >= 60
-                  ? 'text-blue-600'
-                  : health >= 40
-                  ? 'text-yellow-600'
-                  : 'text-red-600'
+            {brands.map((brand: Brand) => {
+              const mentionCount = brand.mention_count || 0
 
               return (
                 <div
                   key={brand.id}
                   onClick={() => router.push(`/dashboard/brands/${brand.id}`)}
-                  className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md"
+                  className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-lg"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-zinc-900">{brand.name}</h3>
                       <p className="mt-1 text-xs text-zinc-500">
                         Added {new Date(brand.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    {health > 0 && (
-                      <div className="text-right">
-                        <div className={`text-2xl font-bold ${healthColor}`}>{health}</div>
-                        <p className="text-xs text-zinc-500">Health</p>
+                    <div className="text-3xl">
+                      🎯
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-2 border-t border-zinc-100">
+                      <span className="text-sm text-zinc-600">Total Mentions</span>
+                      <span className="text-lg font-bold text-zinc-900">{mentionCount}</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-zinc-600">View Details</span>
+                        <span className="text-zinc-900 font-medium">→</span>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-3">
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-green-600">{positive}</div>
-                      <p className="text-xs text-zinc-500">Positive</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-zinc-600">{neutral}</div>
-                      <p className="text-xs text-zinc-500">Neutral</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-red-600">{negative}</div>
-                      <p className="text-xs text-zinc-500">Negative</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-4">
-                    <p className="text-sm text-zinc-600">
-                      {mentions.length} {mentions.length === 1 ? 'mention' : 'mentions'}
-                    </p>
-                    <span className="text-sm font-medium text-zinc-900">View Details →</span>
                   </div>
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {brands.length > 0 && (
+          <div className="mt-8 rounded-lg border border-zinc-200 bg-zinc-50 p-6">
+            <div className="flex items-start gap-4">
+              <div className="text-3xl">💡</div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-zinc-900 mb-1">Pro Tip</h3>
+                <p className="text-sm text-zinc-600">
+                  Click on any brand card to view detailed analytics, sentiment trends, AI-powered insights, and search through mentions.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>

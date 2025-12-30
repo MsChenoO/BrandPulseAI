@@ -231,8 +231,19 @@ Reason: [one sentence explanation]
 
         # Save to database
         with get_session(self.engine) as session:
-            # Get or create brand
-            brand = self.get_or_create_brand(session, mention_data['brand_name'])
+            # Get brand_id (prefer from mention_data if available, otherwise get_or_create)
+            if 'brand_id' in mention_data and mention_data['brand_id']:
+                # Use brand_id from ingestion (supports user-specific brands)
+                brand_id = mention_data['brand_id']
+                # Verify brand exists
+                brand = session.get(Brand, brand_id)
+                if not brand:
+                    print(f"    ⚠ Brand ID {brand_id} not found, skipping mention")
+                    return
+            else:
+                # Fallback: Get or create brand by name (legacy support, no user_id)
+                brand = self.get_or_create_brand(session, mention_data['brand_name'])
+                brand_id = brand.id
 
             # Check if mention already exists (deduplication by URL)
             existing = session.query(Mention).filter(Mention.url == mention_data['url']).first()
@@ -242,7 +253,7 @@ Reason: [one sentence explanation]
 
             # Create mention (Phase 4: includes embedding and entities)
             mention = Mention(
-                brand_id=brand.id,
+                brand_id=brand_id,
                 source=Source(mention_data['source']),
                 title=mention_data['title'],
                 url=mention_data['url'],

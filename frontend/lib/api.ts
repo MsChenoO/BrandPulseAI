@@ -195,6 +195,15 @@ class APIClient {
     })
   }
 
+  /**
+   * Trigger mention fetching for a brand
+   */
+  async fetchMentions(id: number, limit: number = 10): Promise<{ message: string; brand_id: number; status: string }> {
+    return this.request(`/ingestion/brands/${id}/fetch?limit=${limit}`, {
+      method: 'POST',
+    })
+  }
+
   // ==========================================================================
   // Mention Endpoints
   // ==========================================================================

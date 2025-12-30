@@ -12,6 +12,7 @@ export default function BrandsPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [fetchingBrandId, setFetchingBrandId] = useState<number | null>(null)
 
   const { data, error: fetchError, mutate } = useSWR('/brands', () => api.getBrands())
 
@@ -43,6 +44,25 @@ export default function BrandsPage() {
     } catch (err: any) {
       setSuccessMessage('')
       alert(err.error || err.detail || 'Failed to delete brand')
+    }
+  }
+
+  const handleFetchMentions = async (id: number, brandName: string) => {
+    setFetchingBrandId(id)
+    setError('')
+
+    try {
+      await api.fetchMentions(id, 10)
+      setSuccessMessage(`Fetching mentions for ${brandName}... Check back in a moment!`)
+      setTimeout(() => {
+        setSuccessMessage('')
+        mutate() // Refresh to show new mention counts
+      }, 5000)
+    } catch (err: any) {
+      setError(err.error || err.detail || 'Failed to fetch mentions')
+      setTimeout(() => setError(''), 3000)
+    } finally {
+      setFetchingBrandId(null)
     }
   }
 
@@ -123,6 +143,13 @@ export default function BrandsPage() {
                   className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-900 hover:bg-zinc-100 transition-colors"
                 >
                   View Details
+                </button>
+                <button
+                  onClick={() => handleFetchMentions(brand.id, brand.name)}
+                  disabled={fetchingBrandId === brand.id}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {fetchingBrandId === brand.id ? 'Fetching...' : 'Fetch Mentions'}
                 </button>
                 <button
                   onClick={() => handleDeleteBrand(brand.id, brand.name)}

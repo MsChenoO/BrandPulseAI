@@ -80,10 +80,10 @@ export default function BrandDetailPage({ params }: PageProps) {
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="text-red-600 mb-4">Failed to load brand</div>
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={() => router.push('/dashboard/brands')}
           className="text-sm text-zinc-600 hover:text-zinc-900"
         >
-          ← Back to Dashboard
+          ← Back to Brands
         </button>
       </div>
     )
@@ -121,7 +121,7 @@ export default function BrandDetailPage({ params }: PageProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/dashboard/brands')}
             className="text-zinc-600 hover:text-zinc-900 transition-colors"
           >
             ← Back

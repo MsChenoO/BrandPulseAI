@@ -23,6 +23,7 @@ from models.database import (
     get_engine, create_db_and_tables, get_session,
     Brand, Mention, SentimentLabel, Source
 )
+from sqlmodel import select
 
 
 class SentimentWorker:
@@ -121,7 +122,7 @@ class SentimentWorker:
         Returns:
             (sentiment_score, sentiment_label)
         """
-        if not text.strip():
+        if not text or not text.strip():
             return 0.0, "Neutral"
 
         # Truncate for LLM
@@ -198,7 +199,11 @@ Reason: [one sentence explanation]
         content = mention_data.get('content_snippet', '')
         if not content or len(content) < 100:
             if mention_data['source'] != 'hackernews':  # HN might not have external URL
-                content = await self.fetch_url_content(mention_data['url'])
+                fetched = await self.fetch_url_content(mention_data['url'])
+                content = fetched if fetched else ''
+
+        # Ensure content is never None
+        content = content or ''
 
         # Analyze sentiment
         sentiment_score, sentiment_label = await self.analyze_sentiment(
@@ -231,24 +236,28 @@ Reason: [one sentence explanation]
 
         # Save to database
         with get_session(self.engine) as session:
-            # Get brand_id (prefer from mention_data if available, otherwise get_or_create)
-            if 'brand_id' in mention_data and mention_data['brand_id']:
-                # Use brand_id from ingestion (supports user-specific brands)
-                brand_id = mention_data['brand_id']
-                # Verify brand exists
-                brand = session.get(Brand, brand_id)
-                if not brand:
-                    print(f"    ⚠ Brand ID {brand_id} not found, skipping mention")
-                    return
-            else:
-                # Fallback: Get or create brand by name (legacy support, no user_id)
-                brand = self.get_or_create_brand(session, mention_data['brand_name'])
-                brand_id = brand.id
-
-            # Check if mention already exists (deduplication by URL)
-            existing = session.query(Mention).filter(Mention.url == mention_data['url']).first()
+            # DEDUPLICATION - Check if mention already exists FIRST (before any processing)
+            existing = session.exec(
+                select(Mention).where(Mention.url == mention_data['url'])
+            ).first()
             if existing:
-                print(f"    ⚠ Mention already exists in database (ID: {existing.id})")
+                print(f"    ⏭️  Already exists (ID: {existing.id})")
+                # Still acknowledge the message so it doesn't get reprocessed
+                self.redis_client.acknowledge_message(self.consumer_group, message_id)
+                return
+
+            # Get brand_id from mention_data (required for user association)
+            if 'brand_id' not in mention_data or not mention_data['brand_id']:
+                print(f"    ⚠ No brand_id in mention data, skipping (legacy/malformed)")
+                self.redis_client.acknowledge_message(self.consumer_group, message_id)
+                return
+
+            brand_id = mention_data['brand_id']
+            # Verify brand exists
+            brand = session.get(Brand, brand_id)
+            if not brand:
+                print(f"    ⚠ Brand ID {brand_id} not found, skipping mention")
+                self.redis_client.acknowledge_message(self.consumer_group, message_id)
                 return
 
             # Create mention (Phase 4: includes embedding and entities)
@@ -307,21 +316,21 @@ Reason: [one sentence explanation]
                 print(f"    ⚠ Elasticsearch indexing failed: {e}")
                 # Don't fail the whole process if ES indexing fails
 
-        # Acknowledge message in Redis
-        self.redis_client.acknowledge_enriched_message(self.consumer_group, message_id)
+        # Acknowledge message in Redis (raw stream)
+        self.redis_client.acknowledge_message(self.consumer_group, message_id)
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop - reads from RAW stream for single-pass processing"""
         print(f"\n{'='*80}")
-        print(f"  Sentiment Worker Running")
+        print(f"  Sentiment Worker Running (Simplified Single-Pass)")
         print(f"  Consumer Group: {self.consumer_group}")
         print(f"  Consumer Name: {self.consumer_name}")
-        print(f"  Input Stream: {self.redis_client.STREAM_MENTIONS_ENRICHED}")
+        print(f"  Input Stream: {self.redis_client.STREAM_MENTIONS_RAW}")
         print(f"  Output: PostgreSQL + Elasticsearch")
         print(f"{'='*80}\n")
 
         try:
-            for message_id, mention_data in self.redis_client.consume_enriched_mentions(
+            for message_id, mention_data in self.redis_client.consume_raw_mentions(
                 consumer_group=self.consumer_group,
                 consumer_name=self.consumer_name,
                 block_ms=5000,
@@ -331,12 +340,16 @@ Reason: [one sentence explanation]
                     await self.process_mention(message_id, mention_data)
                 except Exception as e:
                     print(f"  ✗ Error processing mention: {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Don't acknowledge - message will be retried
 
         except KeyboardInterrupt:
             print("\n\n✓ Worker stopped by user")
         except Exception as e:
             print(f"\n✗ Worker error: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.redis_client.close()
 

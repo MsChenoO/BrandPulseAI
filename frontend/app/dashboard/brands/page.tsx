@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { api } from '@/lib/api'
 import type { Brand } from '@/lib/types'
 
 export default function BrandsPage() {
+  const router = useRouter()
   const [newBrandName, setNewBrandName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -101,12 +103,20 @@ export default function BrandsPage() {
                   Added {new Date(brand.created_at).toLocaleDateString()}
                 </p>
               </div>
-              <button
-                onClick={() => handleDeleteBrand(brand.id)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-              >
-                Delete
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.push(`/dashboard/brands/${brand.id}`)}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-900 hover:bg-zinc-100 transition-colors"
+                >
+                  View Details
+                </button>
+                <button
+                  onClick={() => handleDeleteBrand(brand.id)}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

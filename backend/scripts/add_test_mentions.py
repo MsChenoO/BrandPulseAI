@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import random
 
 
-def add_test_mentions():
+def add_test_mentions(clear_existing=False):
     """Add test mentions for existing brands"""
 
     # Database setup
@@ -23,6 +23,13 @@ def add_test_mentions():
     )
     engine = get_engine(database_url)
     session = get_session(engine)
+
+    # Clear existing test mentions if requested
+    if clear_existing:
+        print("\n🗑️  Clearing existing test mentions...")
+        deleted = session.query(Mention).filter(Mention.url.like('%example.com%')).delete(synchronize_session=False)
+        session.commit()
+        print(f"   ✓ Deleted {deleted} test mentions")
 
     # Get all brands
     brands = session.query(Brand).all()
@@ -129,4 +136,9 @@ def add_test_mentions():
 
 
 if __name__ == "__main__":
-    add_test_mentions()
+    import argparse
+    parser = argparse.ArgumentParser(description="Add test mentions for brands")
+    parser.add_argument("--clear", action="store_true", help="Clear existing test mentions first")
+    args = parser.parse_args()
+
+    add_test_mentions(clear_existing=args.clear)

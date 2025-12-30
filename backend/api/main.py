@@ -5,8 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 # Import routers
-from api.routers import brands, search, auth
-# from api.routers import mentions  # Will create this next
+from api.routers import brands, search, auth, websocket, testing, mentions
 
 # Create FastAPI app
 app = FastAPI(
@@ -55,7 +54,9 @@ async def root():
 app.include_router(auth.router)
 app.include_router(brands.router)
 app.include_router(search.router)
-# app.include_router(mentions.router, prefix="/mentions", tags=["Mentions"])  # TODO
+app.include_router(websocket.router)
+app.include_router(testing.router)  # Development only
+app.include_router(mentions.router)
 
 # Startup event
 @app.on_event("startup")
@@ -65,6 +66,12 @@ async def startup_event():
     """
     print("🚀 BrandPulse API starting up...")
     print("📚 API Documentation: http://localhost:8000/docs")
+
+    # Initialize WebSocket service with connection manager
+    from services.websocket_service import websocket_service
+    from api.routers.websocket import manager
+    websocket_service.set_manager(manager)
+    print("🔌 WebSocket service initialized")
 
 # Shutdown event
 @app.on_event("shutdown")

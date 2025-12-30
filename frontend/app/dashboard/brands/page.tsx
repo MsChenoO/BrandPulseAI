@@ -35,6 +35,7 @@ export default function BrandsPage() {
       await api.deleteBrand(id)
       mutate()
     } catch (err: any) {
+      console.error('Delete brand error:', err)
       alert(err.error || err.detail || 'Failed to delete brand')
     }
   }

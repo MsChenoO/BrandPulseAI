@@ -7,6 +7,7 @@ from datetime import datetime
 from enum import Enum
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import ForeignKey
 
 
 class SentimentLabel(str, Enum):
@@ -37,17 +38,25 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Relationship
+    brands: List["Brand"] = Relationship(back_populates="user")
+
 
 class Brand(SQLModel, table=True):
     """Brand entity - represents a brand being monitored"""
     __tablename__ = "brands"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True, max_length=255)
+    name: str = Field(index=True, max_length=255)
+    user_id: int = Field(sa_column=Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False))
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    # Relationship
-    mentions: List["Mention"] = Relationship(back_populates="brand")
+    # Relationship with cascade delete
+    mentions: List["Mention"] = Relationship(
+        back_populates="brand",
+        sa_relationship_kwargs={"cascade": "all, delete", "passive_deletes": True}
+    )
+    user: "User" = Relationship(back_populates="brands")
 
 
 class Mention(SQLModel, table=True):
@@ -55,7 +64,7 @@ class Mention(SQLModel, table=True):
     __tablename__ = "mentions"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    brand_id: int = Field(foreign_key="brands.id", index=True)
+    brand_id: int = Field(sa_column=Column("brand_id", ForeignKey("brands.id", ondelete="CASCADE"), index=True, nullable=False))
 
     # Source metadata
     source: Source = Field(index=True)

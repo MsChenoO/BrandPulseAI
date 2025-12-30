@@ -23,6 +23,8 @@ from models.database import (
     get_engine, create_db_and_tables, get_session,
     Brand, Mention, SentimentLabel, Source
 )
+# Phase 5: WebSocket broadcasting for real-time updates
+from services.websocket_service import broadcast_new_mention
 
 
 class SentimentWorker:
@@ -263,6 +265,26 @@ Reason: [one sentence explanation]
             session.commit()
             session.refresh(mention)
             print(f"    ✓ Saved to database (Mention ID: {mention.id}, Brand ID: {brand.id})")
+
+            # Phase 5: Broadcast new mention via WebSocket for real-time updates
+            try:
+                mention_broadcast_data = {
+                    "id": mention.id,
+                    "title": mention.title,
+                    "content": mention.content or "",
+                    "url": mention.url,
+                    "source": mention.source.value,
+                    "sentiment_label": mention.sentiment_label.value,
+                    "sentiment_score": mention.sentiment_score,
+                    "brand_id": mention.brand_id,
+                    "published_at": mention.published_date.isoformat() if mention.published_date else None,
+                    "created_at": mention.processed_date.isoformat() if mention.processed_date else datetime.utcnow().isoformat(),
+                }
+                await broadcast_new_mention(mention_broadcast_data, brand_id=mention.brand_id)
+                print(f"    ✓ Broadcasted to WebSocket clients")
+            except Exception as e:
+                print(f"    ⚠ WebSocket broadcast failed: {e}")
+                # Don't fail the whole process if broadcasting fails
 
             # Index to Elasticsearch (Phase 4: includes entities)
             es_document = {

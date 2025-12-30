@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { api } from '@/lib/api'
 import type { Brand, MentionList } from '@/lib/types'
+import { SentimentTrendChart } from '@/components/sentiment-trend-chart'
+import { BrandInsights } from '@/components/brand-insights'
+import { BrandSearch } from '@/components/brand-search'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -33,11 +36,40 @@ export default function BrandDetailPage({ params }: PageProps) {
     () => api.getSentimentTrend(brandId, 30)
   )
 
-  // Loading state
+  // Loading state with skeleton
   if (!brand && !brandError) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-zinc-500">Loading brand...</div>
+      <div className="space-y-6 animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex items-center gap-4">
+          <div className="h-8 w-16 bg-zinc-200 rounded"></div>
+          <div>
+            <div className="h-8 w-48 bg-zinc-200 rounded"></div>
+            <div className="h-4 w-32 bg-zinc-100 rounded mt-2"></div>
+          </div>
+        </div>
+
+        {/* Health Score Skeleton */}
+        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+          <div className="h-6 w-32 bg-zinc-200 rounded mb-4"></div>
+          <div className="h-12 w-24 bg-zinc-200 rounded"></div>
+        </div>
+
+        {/* Metrics Skeleton */}
+        <div className="grid gap-6 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-lg border border-zinc-200 bg-white p-6">
+              <div className="h-4 w-24 bg-zinc-200 rounded mb-3"></div>
+              <div className="h-8 w-16 bg-zinc-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart Skeleton */}
+        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+          <div className="h-6 w-40 bg-zinc-200 rounded mb-4"></div>
+          <div className="h-64 bg-zinc-100 rounded"></div>
+        </div>
       </div>
     )
   }
@@ -163,64 +195,53 @@ export default function BrandDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Sentiment Trend (Placeholder) */}
+      {/* Sentiment Trend Chart */}
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-zinc-900 mb-4">Sentiment Trend</h2>
+        <h2 className="text-lg font-semibold text-zinc-900 mb-4">📈 Sentiment Trend</h2>
         {sentimentTrend && sentimentTrend.data_points.length > 0 ? (
-          <div className="space-y-2">
-            <p className="text-sm text-zinc-600">
-              Average Sentiment: {sentimentTrend.overall_average.toFixed(2)}
-            </p>
-            <p className="text-xs text-zinc-500">
-              {sentimentTrend.data_points.length} data points from{' '}
-              {new Date(sentimentTrend.start_date).toLocaleDateString()} to{' '}
-              {new Date(sentimentTrend.end_date).toLocaleDateString()}
-            </p>
-            {/* TODO: Add chart component here */}
-            <div className="mt-4 p-8 bg-zinc-50 rounded-lg text-center text-sm text-zinc-500">
-              📈 Chart visualization coming soon
+          <div className="space-y-4">
+            <div className="flex items-center gap-6 text-sm">
+              <div>
+                <span className="text-zinc-600">Average Sentiment:</span>
+                <span className="ml-2 font-semibold text-zinc-900">
+                  {(sentimentTrend.overall_average * 100).toFixed(1)}
+                </span>
+              </div>
+              <div>
+                <span className="text-zinc-600">Period:</span>
+                <span className="ml-2 font-medium text-zinc-700">
+                  {new Date(sentimentTrend.start_date).toLocaleDateString()} -{' '}
+                  {new Date(sentimentTrend.end_date).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-zinc-600">Data Points:</span>
+                <span className="ml-2 font-medium text-zinc-700">
+                  {sentimentTrend.data_points.length}
+                </span>
+              </div>
             </div>
+            <SentimentTrendChart data={sentimentTrend.data_points} />
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">No sentiment data available yet</p>
+          <div className="p-8 bg-zinc-50 rounded-lg text-center">
+            <p className="text-sm text-zinc-500">
+              No sentiment data available yet. Data will appear as mentions are collected.
+            </p>
+          </div>
         )}
       </div>
 
-      {/* Key Insights (Placeholder) */}
+      {/* AI-Powered Key Insights */}
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-zinc-900 mb-4">🔍 Key Insights</h2>
-        <div className="space-y-3">
-          {totalMentions > 0 ? (
-            <>
-              <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                <span className="text-lg">📈</span>
-                <div>
-                  <p className="text-sm font-medium text-zinc-900">
-                    {positivePercent}% positive sentiment
-                  </p>
-                  <p className="text-xs text-zinc-600">
-                    Your brand is performing well with {positiveCount} positive mentions
-                  </p>
-                </div>
-              </div>
-              {negativeCount > 0 && (
-                <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg">
-                  <span className="text-lg">⚠️</span>
-                  <div>
-                    <p className="text-sm font-medium text-zinc-900">
-                      {negativeCount} negative mentions detected
-                    </p>
-                    <p className="text-xs text-zinc-600">
-                      Monitor these mentions closely for potential issues
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-zinc-500">No insights available yet. Add mentions to see AI-powered insights.</p>
-          )}
-        </div>
+        <BrandInsights mentions={mentionsList} brandName={brand?.name || ''} />
+      </div>
+
+      {/* Scoped Search */}
+      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-zinc-900 mb-4">🔎 Search Mentions</h2>
+        <BrandSearch brandId={brandId} brandName={brand?.name || ''} />
       </div>
 
       {/* Latest Mentions */}

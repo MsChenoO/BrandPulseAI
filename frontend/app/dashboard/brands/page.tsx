@@ -130,6 +130,7 @@ export default function BrandsPage() {
         {fetchError && (
           <div className="text-center py-12 text-red-600">
             Failed to load brands
+          </div>
         )}
 
         {data && data.brands.length === 0 && (

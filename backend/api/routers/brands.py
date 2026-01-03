@@ -1,7 +1,7 @@
 # Phase 3: Brands Router
 # Handles brand CRUD operations
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlmodel import Session, select
 from typing import List, Optional
 import sys
@@ -17,6 +17,9 @@ from api.routers.auth import get_current_user
 from datetime import datetime, timedelta
 from sqlmodel import func
 from sqlalchemy import case
+
+# Import ingestion function for auto-trigger
+from api.routers.ingestion import ingest_brand_mentions
 
 router = APIRouter(
     prefix="/brands",
@@ -38,19 +41,23 @@ router = APIRouter(
 
     The brand name must be unique for this user.
 
+    **Auto-triggers ingestion** of mentions from Google News and HackerNews.
+
     **Requires authentication.**
     """
 )
 def create_brand(
     brand_data: BrandCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
 ) -> BrandResponse:
     """
-    Create a new brand for tracking.
+    Create a new brand for tracking and auto-trigger ingestion.
 
     Args:
         brand_data: Brand creation data (name)
+        background_tasks: FastAPI background tasks
         db: Database session
         current_user: Authenticated user
 
@@ -85,12 +92,20 @@ def create_brand(
     db.commit()
     db.refresh(new_brand)  # Get the auto-generated ID
 
+    # Auto-trigger ingestion in background (10 mentions per source)
+    background_tasks.add_task(
+        ingest_brand_mentions,
+        brand_id=new_brand.id,
+        brand_name=new_brand.name,
+        limit=10
+    )
+
     # Return response
     return BrandResponse(
         id=new_brand.id,
         name=new_brand.name,
         created_at=new_brand.created_at,
-        mention_count=0  # New brand has no mentions yet
+        mention_count=0  # New brand has no mentions yet (ingestion in progress)
     )
 
 

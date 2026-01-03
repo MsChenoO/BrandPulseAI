@@ -36,6 +36,9 @@ async def ingest_brand_mentions(brand_id: int, brand_name: str, limit: int = 10)
     print(f"\n🔍 Starting ingestion for brand: {brand_name} (ID: {brand_id})")
 
     try:
+        from datetime import datetime
+        from models.database import get_engine
+
         # Initialize Redis
         redis_client = RedisStreamClient()
 
@@ -73,6 +76,19 @@ async def ingest_brand_mentions(brand_id: int, brand_name: str, limit: int = 10)
 
         total = len(news_mentions) + len(hn_mentions)
         print(f"  ✅ Ingestion complete: {total} mentions published for {brand_name}")
+
+        # Update brand's updated_at timestamp
+        try:
+            from models.database import Brand
+            engine = get_engine()
+            with Session(engine) as db:
+                brand = db.get(Brand, brand_id)
+                if brand:
+                    brand.updated_at = datetime.utcnow()
+                    db.add(brand)
+                    db.commit()
+        except Exception as update_error:
+            print(f"  ⚠ Failed to update brand timestamp: {update_error}")
 
     except Exception as e:
         print(f"  ❌ Ingestion failed for {brand_name}: {e}")

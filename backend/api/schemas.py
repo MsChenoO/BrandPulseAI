@@ -45,6 +45,7 @@ class BrandResponse(BaseModel):
     id: int
     name: str
     created_at: datetime
+    updated_at: datetime
     mention_count: Optional[int] = Field(None, description="Total number of mentions")
 
     class Config:
@@ -54,6 +55,7 @@ class BrandResponse(BaseModel):
                 "id": 1,
                 "name": "Tesla",
                 "created_at": "2025-12-16T10:00:00",
+                "updated_at": "2025-12-16T15:30:00",
                 "mention_count": 42
             }
         }

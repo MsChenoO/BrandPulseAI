@@ -50,6 +50,7 @@ class Brand(SQLModel, table=True):
     name: str = Field(index=True, max_length=255)
     user_id: int = Field(sa_column=Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False))
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
     mentions: List["Mention"] = Relationship(

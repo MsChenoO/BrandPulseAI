@@ -6,6 +6,20 @@ import useSWR from 'swr'
 import { api } from '@/lib/api'
 import type { Brand } from '@/lib/types'
 
+// Helper function to format relative time
+function getRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) return 'just now'
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} days ago`
+  if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`
+  return `${Math.floor(diffInSeconds / 31536000)} years ago`
+}
+
 export default function BrandsPage() {
   const router = useRouter()
   const [newBrandName, setNewBrandName] = useState('')
@@ -106,61 +120,88 @@ export default function BrandsPage() {
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 p-6">
-          <h2 className="text-lg font-semibold text-zinc-900">Your Brands</h2>
-        </div>
-        <div className="divide-y divide-zinc-200">
-          {!data && !fetchError && (
-            <div className="p-6 text-center text-zinc-500">Loading...</div>
-          )}
-          {fetchError && (
-            <div className="p-6 text-center text-red-600">
-              Failed to load brands
-            </div>
-          )}
-          {data && data.brands.length === 0 && (
-            <div className="p-6 text-center text-zinc-500">
-              No brands yet. Add your first brand above.
-            </div>
-          )}
-          {data?.brands.map((brand: Brand) => (
-            <div
-              key={brand.id}
-              className="flex items-center justify-between p-6"
-            >
-              <div>
-                <h3 className="font-medium text-zinc-900">{brand.name}</h3>
-                <p className="text-sm text-zinc-500">
-                  {brand.mention_count || 0} mentions
-                  {' · '}
-                  Added {new Date(brand.created_at).toLocaleDateString()}
-                </p>
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-900 mb-4">My Brands</h2>
+
+        {!data && !fetchError && (
+          <div className="text-center py-12 text-zinc-500">Loading...</div>
+        )}
+
+        {fetchError && (
+          <div className="text-center py-12 text-red-600">
+            Failed to load brands
+        )}
+
+        {data && data.brands.length === 0 && (
+          <div className="text-center py-12 text-zinc-500">
+            No brands yet. Add your first brand above.
+          </div>
+        )}
+
+        {data && data.brands.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {data.brands.map((brand: Brand) => (
+              <div
+                key={brand.id}
+                className="group relative rounded-lg border border-zinc-200 bg-white p-6 hover:shadow-lg transition-shadow"
+              >
+                {/* Brand Header */}
+                <div className="mb-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    {/* Logo Placeholder */}
+                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-zinc-100 to-zinc-200 border border-zinc-300 flex items-center justify-center">
+                      <span className="text-xl font-bold text-zinc-600">
+                        {brand.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Brand Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xl font-semibold text-zinc-900 mb-1">
+                        {brand.name}
+                      </h3>
+                      <div className="flex items-center gap-4 text-sm text-zinc-500">
+                        <span className="flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                          </svg>
+                          {brand.mention_count || 0} mentions
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-zinc-500">
+                    Updated {getRelativeTime(brand.updated_at)}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => router.push(`/dashboard/brands/${brand.id}`)}
+                    className="flex-1 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition-colors"
+                  >
+                    View Details
+                  </button>
+                  <button
+                    onClick={() => handleFetchMentions(brand.id, brand.name)}
+                    disabled={fetchingBrandId === brand.id}
+                    className="rounded-md px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {fetchingBrandId === brand.id ? 'Fetching...' : 'Refresh'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBrand(brand.id, brand.name)}
+                    className="rounded-md px-3 py-2 text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => router.push(`/dashboard/brands/${brand.id}`)}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-900 hover:bg-zinc-100 transition-colors"
-                >
-                  View Details
-                </button>
-                <button
-                  onClick={() => handleFetchMentions(brand.id, brand.name)}
-                  disabled={fetchingBrandId === brand.id}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {fetchingBrandId === brand.id ? 'Fetching...' : 'Fetch Mentions'}
-                </button>
-                <button
-                  onClick={() => handleDeleteBrand(brand.id, brand.name)}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

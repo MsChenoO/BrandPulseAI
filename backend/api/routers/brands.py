@@ -105,6 +105,7 @@ def create_brand(
         id=new_brand.id,
         name=new_brand.name,
         created_at=new_brand.created_at,
+        updated_at=new_brand.updated_at,
         mention_count=0  # New brand has no mentions yet (ingestion in progress)
     )
 
@@ -152,6 +153,7 @@ def list_brands(
                 id=brand.id,
                 name=brand.name,
                 created_at=brand.created_at,
+                updated_at=brand.updated_at,
                 mention_count=mention_count
             )
         )
@@ -208,6 +210,7 @@ def get_brand(
         id=brand.id,
         name=brand.name,
         created_at=brand.created_at,
+        updated_at=brand.updated_at,
         mention_count=mention_count
     )
 

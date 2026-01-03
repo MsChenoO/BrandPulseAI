@@ -107,7 +107,7 @@ export default function BrandsPage() {
             onChange={(e) => setNewBrandName(e.target.value)}
             placeholder="Brand name"
             required
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-zinc-500"
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-zinc-500 placeholder:text-zinc-400"
           />
           <button
             type="submit"

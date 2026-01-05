@@ -36,18 +36,24 @@ export default function BrandsPage() {
   const [loading, setLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [fetchingBrandId, setFetchingBrandId] = useState<number | null>(null)
+  const [sortBy, setSortBy] = useState('updated_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  const { data, error: fetchError, mutate } = useSWR('/brands', () => api.getBrands(), {
-    // Auto-refresh every 5 seconds to check for new mentions
-    refreshInterval: (latestData) => {
-      // If any brands are being ingested, refresh every 5 seconds
-      if (latestData?.brands?.some(isIngestionInProgress)) {
-        return 5000
-      }
-      // Otherwise, don't auto-refresh
-      return 0
-    },
-  })
+  const { data, error: fetchError, mutate } = useSWR(
+    `/brands?sort_by=${sortBy}&sort_order=${sortOrder}`,
+    () => api.getBrands(sortBy, sortOrder),
+    {
+      // Auto-refresh every 5 seconds to check for new mentions
+      refreshInterval: (latestData) => {
+        // If any brands are being ingested, refresh every 5 seconds
+        if (latestData?.brands?.some(isIngestionInProgress)) {
+          return 5000
+        }
+        // Otherwise, don't auto-refresh
+        return 0
+      },
+    }
+  )
 
   const handleCreateBrand = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,7 +146,49 @@ export default function BrandsPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-zinc-900 mb-4">My Brands</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-zinc-900">My Brands</h2>
+
+          {/* Sorting Controls */}
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-zinc-600">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                const newSortBy = e.target.value
+                setSortBy(newSortBy)
+                // Set appropriate default order based on field
+                if (newSortBy === 'name') {
+                  setSortOrder('asc') // A-Z
+                } else {
+                  setSortOrder('desc') // Most recent / most mentions
+                }
+              }}
+              className="text-sm border border-zinc-300 rounded-md px-3 py-1.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500"
+            >
+              <option value="updated_at">Recently Updated</option>
+              <option value="created_at">Recently Created</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="mention_count">Most Mentions</option>
+            </select>
+
+            <button
+              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+              className="p-1.5 rounded-md border border-zinc-300 hover:bg-zinc-50 text-zinc-600"
+              title={sortOrder === 'desc' ? 'Descending' : 'Ascending'}
+            >
+              {sortOrder === 'desc' ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
 
         {!data && !fetchError && (
           <div className="text-center py-12 text-zinc-500">Loading...</div>

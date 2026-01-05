@@ -161,8 +161,15 @@ class APIClient {
   /**
    * Get all brands
    */
-  async getBrands(): Promise<BrandList> {
-    const brands = await this.request<Brand[]>('/brands')
+  async getBrands(sortBy?: string, sortOrder?: string): Promise<BrandList> {
+    const params = new URLSearchParams()
+    if (sortBy) params.append('sort_by', sortBy)
+    if (sortOrder) params.append('sort_order', sortOrder)
+
+    const queryString = params.toString()
+    const url = queryString ? `/brands?${queryString}` : '/brands'
+
+    const brands = await this.request<Brand[]>(url)
     return {
       brands,
       total: brands.length

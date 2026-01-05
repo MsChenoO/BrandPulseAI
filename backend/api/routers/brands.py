@@ -121,25 +121,59 @@ def create_brand(
     description="""
     Returns all brands being monitored by the current user.
 
+    Supports sorting by:
+    - name (alphabetical)
+    - updated_at (most/least recently updated)
+    - mention_count (most/least mentions)
+    - created_at (newest/oldest)
+
     **Requires authentication.**
     """
 )
 def list_brands(
     db: Session = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    sort_by: str = Query("updated_at", description="Sort field: name, updated_at, mention_count, created_at"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc")
 ) -> List[BrandResponse]:
     """
-    List all brands for the current user.
+    List all brands for the current user with sorting options.
 
     Args:
         db: Database session
         current_user: Authenticated user
+        sort_by: Field to sort by (name, updated_at, mention_count, created_at)
+        sort_order: Sort order (asc or desc)
 
     Returns:
         List of user's brands
     """
-    statement = select(Brand).where(Brand.user_id == current_user.id)
-    brands = db.exec(statement).all()
+    # Validate sort_by
+    valid_sort_fields = ["name", "updated_at", "mention_count", "created_at"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "updated_at"
+
+    # Validate sort_order
+    if sort_order not in ["asc", "desc"]:
+        sort_order = "desc"
+
+    # Get brands (we'll sort later if sorting by mention_count)
+    if sort_by == "mention_count":
+        # Can't sort by mention_count in SQL, need to do it in Python
+        statement = select(Brand).where(Brand.user_id == current_user.id)
+        brands = db.exec(statement).all()
+    else:
+        # Sort in database for other fields
+        statement = select(Brand).where(Brand.user_id == current_user.id)
+
+        # Apply sorting
+        sort_column = getattr(Brand, sort_by)
+        if sort_order == "desc":
+            statement = statement.order_by(sort_column.desc())
+        else:
+            statement = statement.order_by(sort_column.asc())
+
+        brands = db.exec(statement).all()
 
     # Calculate mention count for each brand
     brand_responses = []
@@ -156,6 +190,13 @@ def list_brands(
                 updated_at=brand.updated_at,
                 mention_count=mention_count
             )
+        )
+
+    # Sort by mention_count if requested
+    if sort_by == "mention_count":
+        brand_responses.sort(
+            key=lambda x: x.mention_count,
+            reverse=(sort_order == "desc")
         )
 
     return brand_responses

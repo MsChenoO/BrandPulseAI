@@ -365,6 +365,12 @@ def get_brand_mentions(
     count_statement = statement
     total = len(db.exec(count_statement).all())
 
+    # Sort by most recent first (published_date if available, otherwise ingested_date)
+    statement = statement.order_by(
+        Mention.published_date.desc().nullslast(),
+        Mention.ingested_date.desc()
+    )
+
     # Apply pagination
     statement = statement.offset(offset).limit(limit)
 

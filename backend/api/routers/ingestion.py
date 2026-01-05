@@ -138,6 +138,12 @@ async def trigger_brand_ingestion(
             detail=f"Brand with ID {brand_id} not found"
         )
 
+    # Update timestamp immediately when ingestion is triggered
+    from datetime import datetime
+    brand.updated_at = datetime.utcnow()
+    db.add(brand)
+    db.commit()
+
     # Trigger ingestion in background
     background_tasks.add_task(
         ingest_brand_mentions,

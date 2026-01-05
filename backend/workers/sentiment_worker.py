@@ -25,6 +25,7 @@ from models.database import (
     Brand, Mention, SentimentLabel, Source
 )
 from sqlmodel import select
+from services.websocket_service import broadcast_new_mention
 
 
 class SentimentWorker:

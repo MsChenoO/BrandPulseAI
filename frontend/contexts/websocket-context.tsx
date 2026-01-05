@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, ReactNode } from 'react'
+import { useWebSocket, ConnectionStatus } from '@/hooks/useWebSocket'
 
 interface Mention {
   id: number
@@ -27,12 +28,18 @@ interface WebSocketContextType {
   realtimeMentions: Mention[]
   dashboardStats: DashboardStats | null
   isConnected: boolean
+  status: ConnectionStatus
+  subscribeToBrand: (brandId: number) => void
+  unsubscribeFromBrand: (brandId: number) => void
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
   realtimeMentions: [],
   dashboardStats: null,
   isConnected: false,
+  status: ConnectionStatus.DISCONNECTED,
+  subscribeToBrand: () => {},
+  unsubscribeFromBrand: () => {},
 })
 
 export function useWebSocketContext() {
@@ -46,35 +53,52 @@ interface WebSocketProviderProps {
 export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [realtimeMentions, setRealtimeMentions] = useState<Mention[]>([])
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
 
-  useEffect(() => {
-    // WebSocket connection would go here
-    // For now, we'll use a mock implementation
+  // Use real WebSocket hook
+  const { status, isConnected, subscribeToBrand, unsubscribeFromBrand } = useWebSocket({
+    autoConnect: true,
+    reconnectInterval: 3000,
+    maxReconnectAttempts: 5,
+    onMessage: (message) => {
+      console.log('WebSocket message received:', message.type)
 
-    // Simulate connection
-    setIsConnected(true)
+      // Handle different message types
+      switch (message.type) {
+        case 'new_mention':
+          // Add new mention to the top of the list
+          if (message.data) {
+            setRealtimeMentions((prev) => [message.data, ...prev].slice(0, 100))
+            console.log('New mention added:', message.data.title)
+          }
+          break
 
-    // In a real implementation, you would:
-    // const ws = new WebSocket('ws://localhost:8000/ws')
-    // ws.onopen = () => setIsConnected(true)
-    // ws.onmessage = (event) => {
-    //   const data = JSON.parse(event.data)
-    //   if (data.type === 'mention') {
-    //     setRealtimeMentions(prev => [data.mention, ...prev].slice(0, 100))
-    //   } else if (data.type === 'stats') {
-    //     setDashboardStats(data.stats)
-    //   }
-    // }
-    // ws.onclose = () => setIsConnected(false)
-    //
-    // return () => ws.close()
+        case 'stats_update':
+          // Update dashboard stats
+          if (message.data) {
+            setDashboardStats(message.data)
+            console.log('Stats updated:', message.data)
+          }
+          break
 
-    // Cleanup
-    return () => {
-      setIsConnected(false)
-    }
-  }, [])
+        case 'sentiment_update':
+          // Handle sentiment updates if needed
+          console.log('Sentiment update:', message.data)
+          break
+
+        default:
+          console.log('Unhandled message type:', message.type)
+      }
+    },
+    onConnect: () => {
+      console.log('✅ WebSocket connected successfully')
+    },
+    onDisconnect: () => {
+      console.log('❌ WebSocket disconnected')
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error)
+    },
+  })
 
   return (
     <WebSocketContext.Provider
@@ -82,6 +106,9 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         realtimeMentions,
         dashboardStats,
         isConnected,
+        status,
+        subscribeToBrand,
+        unsubscribeFromBrand,
       }}
     >
       {children}

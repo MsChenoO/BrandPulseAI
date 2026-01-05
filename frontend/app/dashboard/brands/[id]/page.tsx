@@ -119,20 +119,18 @@ export default function BrandDetailPage({ params }: PageProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.push('/dashboard/brands')}
-            className="text-zinc-600 hover:text-zinc-900 transition-colors"
-          >
-            ← Back
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-zinc-900">{brand?.name}</h1>
-            <p className="text-sm text-zinc-500 mt-1">
-              Added {brand?.created_at ? new Date(brand.created_at).toLocaleDateString() : ''}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-900">{brand?.name}</h1>
+          <p className="text-sm text-zinc-500 mt-1">
+            Added {brand?.created_at ? new Date(brand.created_at).toLocaleDateString() : ''}
+          </p>
         </div>
+        <button
+          onClick={() => router.push('/dashboard/brands')}
+          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors font-medium"
+        >
+          ← Back to Brands
+        </button>
       </div>
 
       {/* Brand Health Score */}

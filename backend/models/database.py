@@ -65,7 +65,7 @@ class Mention(SQLModel, table=True):
     __tablename__ = "mentions"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    brand_id: int = Field(foreign_key="brands.id", index=True)
+    brand_id: int = Field(sa_column=Column("brand_id", ForeignKey("brands.id", ondelete="CASCADE"), index=True, nullable=False))
 
     # Source metadata
     source: Source = Field(index=True)

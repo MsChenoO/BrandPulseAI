@@ -75,6 +75,7 @@ def create_brand(
     existing_brand = db.exec(statement).first()
 
     if existing_brand:
+        logger.warning(f"Brand '{brand_data.name}' already exists for user {current_user.username} (brand_id: {existing_brand.id})")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Brand '{brand_data.name}' already exists"
@@ -88,9 +89,18 @@ def create_brand(
     )
 
     # Save to database
-    db.add(new_brand)
-    db.commit()
-    db.refresh(new_brand)  # Get the auto-generated ID
+    try:
+        db.add(new_brand)
+        db.commit()
+        db.refresh(new_brand)  # Get the auto-generated ID
+        logger.info(f"Successfully created brand '{brand_data.name}' for user {current_user.username} (brand_id: {new_brand.id})")
+    except Exception as e:
+        logger.error(f"Error creating brand '{brand_data.name}': {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating brand: {str(e)}"
+        )
 
     # Auto-trigger ingestion in background (10 mentions per source)
     background_tasks.add_task(
@@ -310,17 +320,20 @@ def delete_brand(
     response_model=MentionList,
     summary="Get mentions for a brand",
     description="""
-    Returns all mentions for a specific brand with optional filtering.
+    Returns all mentions for a specific brand owned by the current user with optional filtering.
 
     Filters:
     - source: Filter by source (google_news, hackernews)
     - sentiment: Filter by sentiment label
     - limit/offset: Pagination
+
+    **Requires authentication.**
     """
 )
 def get_brand_mentions(
     brand_id: int,
     db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
     source: Optional[str] = Query(None, description="Filter by source"),
     sentiment: Optional[str] = Query(None, description="Filter by sentiment label"),
     limit: int = Query(20, le=100, description="Maximum results"),
@@ -332,6 +345,7 @@ def get_brand_mentions(
     Args:
         brand_id: Brand ID
         db: Database session
+        current_user: Authenticated user
         source: Optional source filter
         sentiment: Optional sentiment filter
         limit: Maximum results
@@ -341,11 +355,11 @@ def get_brand_mentions(
         Paginated list of mentions
 
     Raises:
-        404: Brand not found
+        404: Brand not found or not owned by user
     """
-    # Check if brand exists
+    # Check if brand exists and is owned by user
     brand = db.get(Brand, brand_id)
-    if not brand:
+    if not brand or brand.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Brand with ID {brand_id} not found"
@@ -423,11 +437,14 @@ def get_brand_mentions(
 
     Groups mentions by day and calculates average sentiment score,
     positive/neutral/negative counts, and total mentions per day.
+
+    **Requires authentication.**
     """
 )
 def get_sentiment_trend(
     brand_id: int,
     db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
     days: int = Query(30, ge=1, le=365, description="Number of days to include")
 ) -> SentimentTrendResponse:
     """
@@ -436,17 +453,18 @@ def get_sentiment_trend(
     Args:
         brand_id: Brand ID
         db: Database session
+        current_user: Authenticated user
         days: Number of days to include (default 30)
 
     Returns:
         Time-series sentiment data
 
     Raises:
-        404: Brand not found
+        404: Brand not found or not owned by user
     """
-    # Check if brand exists
+    # Check if brand exists and is owned by user
     brand = db.get(Brand, brand_id)
-    if not brand:
+    if not brand or brand.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Brand with ID {brand_id} not found"

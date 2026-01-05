@@ -251,6 +251,58 @@ class APIClient {
     )
   }
 
+  /**
+   * Get recent mentions for a brand (from /mentions endpoint)
+   * Phase 5: For loading initial data on dashboard
+   */
+  async getRecentMentions(
+    brandId?: number,
+    limit: number = 50
+  ): Promise<MentionList> {
+    const queryParams = new URLSearchParams()
+    if (brandId) queryParams.set('brand_id', brandId.toString())
+    queryParams.set('limit', limit.toString())
+
+    const query = queryParams.toString()
+    return this.request<MentionList>(`/mentions${query ? `?${query}` : ''}`)
+  }
+
+  /**
+   * Get recent mentions for a specific brand
+   */
+  async getBrandRecentMentions(
+    brandId: number,
+    limit: number = 20
+  ): Promise<MentionList> {
+    return this.request<MentionList>(
+      `/mentions/brand/${brandId}/recent?limit=${limit}`
+    )
+  }
+
+  /**
+   * Get sentiment statistics
+   */
+  async getSentimentStats(
+    brandId?: number,
+    days: number = 30
+  ): Promise<{
+    total_mentions: number
+    positive_count: number
+    neutral_count: number
+    negative_count: number
+    positive_percentage: number
+    neutral_percentage: number
+    negative_percentage: number
+    average_score: number
+  }> {
+    const queryParams = new URLSearchParams()
+    if (brandId) queryParams.set('brand_id', brandId.toString())
+    queryParams.set('days', days.toString())
+
+    const query = queryParams.toString()
+    return this.request(`/mentions/stats/sentiment${query ? `?${query}` : ''}`)
+  }
+
   // ==========================================================================
   // Search Endpoints
   // ==========================================================================

@@ -20,6 +20,15 @@ function getRelativeTime(dateString: string): string {
   return `${Math.floor(diffInSeconds / 31536000)} years ago`
 }
 
+// Helper function to check if ingestion is likely in progress
+function isIngestionInProgress(brand: Brand): boolean {
+  const created = new Date(brand.created_at)
+  const now = new Date()
+  const diffInMinutes = (now.getTime() - created.getTime()) / 1000 / 60
+  // If brand was created within last 5 minutes and has 0 mentions, assume ingestion is in progress
+  return diffInMinutes < 5 && (brand.mention_count === 0 || !brand.mention_count)
+}
+
 export default function BrandsPage() {
   const router = useRouter()
   const [newBrandName, setNewBrandName] = useState('')
@@ -28,7 +37,17 @@ export default function BrandsPage() {
   const [successMessage, setSuccessMessage] = useState('')
   const [fetchingBrandId, setFetchingBrandId] = useState<number | null>(null)
 
-  const { data, error: fetchError, mutate } = useSWR('/brands', () => api.getBrands())
+  const { data, error: fetchError, mutate } = useSWR('/brands', () => api.getBrands(), {
+    // Auto-refresh every 5 seconds to check for new mentions
+    refreshInterval: (latestData) => {
+      // If any brands are being ingested, refresh every 5 seconds
+      if (latestData?.brands?.some(isIngestionInProgress)) {
+        return 5000
+      }
+      // Otherwise, don't auto-refresh
+      return 0
+    },
+  })
 
   const handleCreateBrand = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -162,12 +181,22 @@ export default function BrandsPage() {
                         {brand.name}
                       </h3>
                       <div className="flex items-center gap-4 text-sm text-zinc-500">
-                        <span className="flex items-center gap-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                          </svg>
-                          {brand.mention_count || 0} mentions
-                        </span>
+                        {isIngestionInProgress(brand) ? (
+                          <span className="flex items-center gap-1.5 text-blue-600">
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Fetching mentions...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                            </svg>
+                            {brand.mention_count || 0} mentions
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

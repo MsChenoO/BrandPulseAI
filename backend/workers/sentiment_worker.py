@@ -11,6 +11,7 @@ from datetime import datetime
 import argparse
 import os
 import sys
+from difflib import SequenceMatcher
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -85,6 +86,43 @@ class SentimentWorker:
         print(f"  - LLM Model: {ollama_model}")
         print(f"  - Embedding Model: nomic-embed-text (768-dim)")
         print(f"  - Consumer: {consumer_name}")
+
+    def calculate_title_similarity(self, title1: str, title2: str) -> float:
+        """
+        Calculate similarity between two titles using SequenceMatcher.
+        Returns a score between 0.0 and 1.0 (1.0 = identical)
+        """
+        return SequenceMatcher(None, title1.lower(), title2.lower()).ratio()
+
+    def calculate_relevance_score(self, title: str, content: str, brand_name: str) -> float:
+        """
+        Calculate relevance score (0-100) based on how relevant the mention is to the brand.
+
+        Scoring criteria:
+        - Brand in title: +40 points
+        - Brand mentions in content: +10 points per mention (max 40)
+        - Title length bonus: +20 points if reasonable length (prevents spam)
+        """
+        score = 0.0
+        brand_lower = brand_name.lower()
+        title_lower = title.lower()
+        content_lower = (content or "").lower()
+
+        # Check if brand is in title (strong signal)
+        if brand_lower in title_lower:
+            score += 40
+
+        # Count brand mentions in content
+        if content:
+            mention_count = content_lower.count(brand_lower)
+            # Cap at 4 mentions to avoid spam
+            score += min(mention_count * 10, 40)
+
+        # Title length check (reasonable titles are 20-200 chars)
+        if 20 <= len(title) <= 200:
+            score += 20
+
+        return min(score, 100)  # Cap at 100
 
     async def fetch_url_content(self, url: str) -> str:
         """Fetch and extract readable text from a URL"""
@@ -204,6 +242,43 @@ Reason: [one sentence explanation]
 
         # Ensure content is never None
         content = content or ''
+
+        # STEP 1: Calculate Relevance Score
+        brand_name = mention_data.get('brand_name', '')
+        relevance_score = self.calculate_relevance_score(
+            mention_data['title'],
+            content,
+            brand_name
+        )
+        print(f"    → Relevance: {relevance_score:.0f}/100")
+
+        # STEP 2: Filter Low Relevance (threshold: 50)
+        if relevance_score < 50:
+            print(f"    ⏭️  Skipped: Low relevance ({relevance_score:.0f} < 50)")
+            self.redis_client.acknowledge_message(self.consumer_group, message_id)
+            return
+
+        # STEP 3: Check for Duplicate Titles (before saving to DB)
+        brand_id = mention_data.get('brand_id')
+        if brand_id:
+            with get_session(self.engine) as session:
+                # Check last 100 mentions for this brand
+                recent_mentions = session.exec(
+                    select(Mention)
+                    .where(Mention.brand_id == brand_id)
+                    .order_by(Mention.ingested_date.desc())
+                    .limit(100)
+                ).all()
+
+                for existing_mention in recent_mentions:
+                    similarity = self.calculate_title_similarity(
+                        mention_data['title'],
+                        existing_mention.title
+                    )
+                    if similarity > 0.85:
+                        print(f"    ⏭️  Skipped: Duplicate title (similarity: {similarity:.2f})")
+                        self.redis_client.acknowledge_message(self.consumer_group, message_id)
+                        return
 
         # Analyze sentiment
         sentiment_score, sentiment_label = await self.analyze_sentiment(

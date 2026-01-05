@@ -11,6 +11,7 @@ from datetime import datetime
 import argparse
 import os
 import sys
+from difflib import SequenceMatcher
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,8 +24,7 @@ from models.database import (
     get_engine, create_db_and_tables, get_session,
     Brand, Mention, SentimentLabel, Source
 )
-# Phase 5: WebSocket broadcasting for real-time updates
-from services.websocket_service import broadcast_new_mention
+from sqlmodel import select
 
 
 class SentimentWorker:
@@ -87,6 +87,43 @@ class SentimentWorker:
         print(f"  - Embedding Model: nomic-embed-text (768-dim)")
         print(f"  - Consumer: {consumer_name}")
 
+    def calculate_title_similarity(self, title1: str, title2: str) -> float:
+        """
+        Calculate similarity between two titles using SequenceMatcher.
+        Returns a score between 0.0 and 1.0 (1.0 = identical)
+        """
+        return SequenceMatcher(None, title1.lower(), title2.lower()).ratio()
+
+    def calculate_relevance_score(self, title: str, content: str, brand_name: str) -> float:
+        """
+        Calculate relevance score (0-100) based on how relevant the mention is to the brand.
+
+        Scoring criteria:
+        - Brand in title: +40 points
+        - Brand mentions in content: +10 points per mention (max 40)
+        - Title length bonus: +20 points if reasonable length (prevents spam)
+        """
+        score = 0.0
+        brand_lower = brand_name.lower()
+        title_lower = title.lower()
+        content_lower = (content or "").lower()
+
+        # Check if brand is in title (strong signal)
+        if brand_lower in title_lower:
+            score += 40
+
+        # Count brand mentions in content
+        if content:
+            mention_count = content_lower.count(brand_lower)
+            # Cap at 4 mentions to avoid spam
+            score += min(mention_count * 10, 40)
+
+        # Title length check (reasonable titles are 20-200 chars)
+        if 20 <= len(title) <= 200:
+            score += 20
+
+        return min(score, 100)  # Cap at 100
+
     async def fetch_url_content(self, url: str) -> str:
         """Fetch and extract readable text from a URL"""
         try:
@@ -123,7 +160,7 @@ class SentimentWorker:
         Returns:
             (sentiment_score, sentiment_label)
         """
-        if not text.strip():
+        if not text or not text.strip():
             return 0.0, "Neutral"
 
         # Truncate for LLM
@@ -200,7 +237,48 @@ Reason: [one sentence explanation]
         content = mention_data.get('content_snippet', '')
         if not content or len(content) < 100:
             if mention_data['source'] != 'hackernews':  # HN might not have external URL
-                content = await self.fetch_url_content(mention_data['url'])
+                fetched = await self.fetch_url_content(mention_data['url'])
+                content = fetched if fetched else ''
+
+        # Ensure content is never None
+        content = content or ''
+
+        # STEP 1: Calculate Relevance Score
+        brand_name = mention_data.get('brand_name', '')
+        relevance_score = self.calculate_relevance_score(
+            mention_data['title'],
+            content,
+            brand_name
+        )
+        print(f"    → Relevance: {relevance_score:.0f}/100")
+
+        # STEP 2: Filter Low Relevance (threshold: 50)
+        if relevance_score < 50:
+            print(f"    ⏭️  Skipped: Low relevance ({relevance_score:.0f} < 50)")
+            self.redis_client.acknowledge_message(self.consumer_group, message_id)
+            return
+
+        # STEP 3: Check for Duplicate Titles (before saving to DB)
+        brand_id = mention_data.get('brand_id')
+        if brand_id:
+            with get_session(self.engine) as session:
+                # Check last 100 mentions for this brand
+                recent_mentions = session.exec(
+                    select(Mention)
+                    .where(Mention.brand_id == brand_id)
+                    .order_by(Mention.ingested_date.desc())
+                    .limit(100)
+                ).all()
+
+                for existing_mention in recent_mentions:
+                    similarity = self.calculate_title_similarity(
+                        mention_data['title'],
+                        existing_mention.title
+                    )
+                    if similarity > 0.85:
+                        print(f"    ⏭️  Skipped: Duplicate title (similarity: {similarity:.2f})")
+                        self.redis_client.acknowledge_message(self.consumer_group, message_id)
+                        return
 
         # Analyze sentiment
         sentiment_score, sentiment_label = await self.analyze_sentiment(
@@ -233,18 +311,33 @@ Reason: [one sentence explanation]
 
         # Save to database
         with get_session(self.engine) as session:
-            # Get or create brand
-            brand = self.get_or_create_brand(session, mention_data['brand_name'])
-
-            # Check if mention already exists (deduplication by URL)
-            existing = session.query(Mention).filter(Mention.url == mention_data['url']).first()
+            # DEDUPLICATION - Check if mention already exists FIRST (before any processing)
+            existing = session.exec(
+                select(Mention).where(Mention.url == mention_data['url'])
+            ).first()
             if existing:
-                print(f"    ⚠ Mention already exists in database (ID: {existing.id})")
+                print(f"    ⏭️  Already exists (ID: {existing.id})")
+                # Still acknowledge the message so it doesn't get reprocessed
+                self.redis_client.acknowledge_message(self.consumer_group, message_id)
+                return
+
+            # Get brand_id from mention_data (required for user association)
+            if 'brand_id' not in mention_data or not mention_data['brand_id']:
+                print(f"    ⚠ No brand_id in mention data, skipping (legacy/malformed)")
+                self.redis_client.acknowledge_message(self.consumer_group, message_id)
+                return
+
+            brand_id = mention_data['brand_id']
+            # Verify brand exists
+            brand = session.get(Brand, brand_id)
+            if not brand:
+                print(f"    ⚠ Brand ID {brand_id} not found, skipping mention")
+                self.redis_client.acknowledge_message(self.consumer_group, message_id)
                 return
 
             # Create mention (Phase 4: includes embedding and entities)
             mention = Mention(
-                brand_id=brand.id,
+                brand_id=brand_id,
                 source=Source(mention_data['source']),
                 title=mention_data['title'],
                 url=mention_data['url'],
@@ -318,21 +411,21 @@ Reason: [one sentence explanation]
                 print(f"    ⚠ Elasticsearch indexing failed: {e}")
                 # Don't fail the whole process if ES indexing fails
 
-        # Acknowledge message in Redis
-        self.redis_client.acknowledge_enriched_message(self.consumer_group, message_id)
+        # Acknowledge message in Redis (raw stream)
+        self.redis_client.acknowledge_message(self.consumer_group, message_id)
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop - reads from RAW stream for single-pass processing"""
         print(f"\n{'='*80}")
-        print(f"  Sentiment Worker Running")
+        print(f"  Sentiment Worker Running (Simplified Single-Pass)")
         print(f"  Consumer Group: {self.consumer_group}")
         print(f"  Consumer Name: {self.consumer_name}")
-        print(f"  Input Stream: {self.redis_client.STREAM_MENTIONS_ENRICHED}")
+        print(f"  Input Stream: {self.redis_client.STREAM_MENTIONS_RAW}")
         print(f"  Output: PostgreSQL + Elasticsearch")
         print(f"{'='*80}\n")
 
         try:
-            for message_id, mention_data in self.redis_client.consume_enriched_mentions(
+            for message_id, mention_data in self.redis_client.consume_raw_mentions(
                 consumer_group=self.consumer_group,
                 consumer_name=self.consumer_name,
                 block_ms=5000,
@@ -342,12 +435,16 @@ Reason: [one sentence explanation]
                     await self.process_mention(message_id, mention_data)
                 except Exception as e:
                     print(f"  ✗ Error processing mention: {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Don't acknowledge - message will be retried
 
         except KeyboardInterrupt:
             print("\n\n✓ Worker stopped by user")
         except Exception as e:
             print(f"\n✗ Worker error: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.redis_client.close()
 

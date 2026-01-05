@@ -161,8 +161,15 @@ class APIClient {
   /**
    * Get all brands
    */
-  async getBrands(): Promise<BrandList> {
-    const brands = await this.request<Brand[]>('/brands')
+  async getBrands(sortBy?: string, sortOrder?: string): Promise<BrandList> {
+    const params = new URLSearchParams()
+    if (sortBy) params.append('sort_by', sortBy)
+    if (sortOrder) params.append('sort_order', sortOrder)
+
+    const queryString = params.toString()
+    const url = queryString ? `/brands?${queryString}` : '/brands'
+
+    const brands = await this.request<Brand[]>(url)
     return {
       brands,
       total: brands.length
@@ -192,6 +199,15 @@ class APIClient {
   async deleteBrand(id: number): Promise<void> {
     await this.request(`/brands/${id}`, {
       method: 'DELETE',
+    })
+  }
+
+  /**
+   * Trigger mention fetching for a brand
+   */
+  async fetchMentions(id: number, limit: number = 10): Promise<{ message: string; brand_id: number; status: string }> {
+    return this.request(`/ingestion/brands/${id}/fetch?limit=${limit}`, {
+      method: 'POST',
     })
   }
 

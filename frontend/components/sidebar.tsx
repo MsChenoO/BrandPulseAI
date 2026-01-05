@@ -15,7 +15,6 @@ export function Sidebar() {
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: '📊' },
     { name: 'Brands', href: '/dashboard/brands', icon: '🏷️' },
-    { name: 'Search', href: '/dashboard/search', icon: '🔍' },
   ]
 
   return (

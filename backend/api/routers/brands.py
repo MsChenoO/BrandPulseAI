@@ -1,7 +1,7 @@
 # Phase 3: Brands Router
 # Handles brand CRUD operations
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlmodel import Session, select
 from typing import List, Optional
 import sys
@@ -17,6 +17,9 @@ from api.routers.auth import get_current_user
 from datetime import datetime, timedelta
 from sqlmodel import func
 from sqlalchemy import case
+
+# Import ingestion function for auto-trigger
+from api.routers.ingestion import ingest_brand_mentions
 
 router = APIRouter(
     prefix="/brands",
@@ -36,21 +39,25 @@ router = APIRouter(
     description="""
     Creates a new brand for monitoring.
 
-    The brand name must be unique for this user. If the brand already exists for this user, returns 400 error.
+    The brand name must be unique for this user.
+
+    **Auto-triggers ingestion** of mentions from Google News and HackerNews.
 
     **Requires authentication.**
     """
 )
 def create_brand(
     brand_data: BrandCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
 ) -> BrandResponse:
     """
-    Create a new brand for tracking.
+    Create a new brand for tracking and auto-trigger ingestion.
 
     Args:
         brand_data: Brand creation data (name)
+        background_tasks: FastAPI background tasks
         db: Database session
         current_user: Authenticated user
 
@@ -60,11 +67,6 @@ def create_brand(
     Raises:
         400: Brand already exists for this user
     """
-    import logging
-    logger = logging.getLogger(__name__)
-
-    logger.info(f"User {current_user.username} attempting to create brand: {brand_data.name}")
-
     # Check if brand already exists for this user
     statement = select(Brand).where(
         Brand.name == brand_data.name,
@@ -100,12 +102,21 @@ def create_brand(
             detail=f"Error creating brand: {str(e)}"
         )
 
+    # Auto-trigger ingestion in background (10 mentions per source)
+    background_tasks.add_task(
+        ingest_brand_mentions,
+        brand_id=new_brand.id,
+        brand_name=new_brand.name,
+        limit=10
+    )
+
     # Return response
     return BrandResponse(
         id=new_brand.id,
         name=new_brand.name,
         created_at=new_brand.created_at,
-        mention_count=0  # New brand has no mentions yet
+        updated_at=new_brand.updated_at,
+        mention_count=0  # New brand has no mentions yet (ingestion in progress)
     )
 
 
@@ -120,38 +131,85 @@ def create_brand(
     description="""
     Returns all brands being monitored by the current user.
 
+    Supports sorting by:
+    - name (alphabetical)
+    - updated_at (most/least recently updated)
+    - mention_count (most/least mentions)
+    - created_at (newest/oldest)
+
     **Requires authentication.**
     """
 )
 def list_brands(
     db: Session = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    sort_by: str = Query("updated_at", description="Sort field: name, updated_at, mention_count, created_at"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc")
 ) -> List[BrandResponse]:
     """
-    List all brands for the current user.
+    List all brands for the current user with sorting options.
 
     Args:
         db: Database session
         current_user: Authenticated user
+        sort_by: Field to sort by (name, updated_at, mention_count, created_at)
+        sort_order: Sort order (asc or desc)
 
     Returns:
         List of user's brands
     """
-    statement = select(Brand).where(Brand.user_id == current_user.id)
-    brands = db.exec(statement).all()
+    # Validate sort_by
+    valid_sort_fields = ["name", "updated_at", "mention_count", "created_at"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "updated_at"
 
-    # Convert to response models
-    # Note: mention_count would require a join with Mention table
-    # For now, we'll leave it as None
-    return [
-        BrandResponse(
-            id=brand.id,
-            name=brand.name,
-            created_at=brand.created_at,
-            mention_count=None  # TODO: Add count query
+    # Validate sort_order
+    if sort_order not in ["asc", "desc"]:
+        sort_order = "desc"
+
+    # Get brands (we'll sort later if sorting by mention_count)
+    if sort_by == "mention_count":
+        # Can't sort by mention_count in SQL, need to do it in Python
+        statement = select(Brand).where(Brand.user_id == current_user.id)
+        brands = db.exec(statement).all()
+    else:
+        # Sort in database for other fields
+        statement = select(Brand).where(Brand.user_id == current_user.id)
+
+        # Apply sorting
+        sort_column = getattr(Brand, sort_by)
+        if sort_order == "desc":
+            statement = statement.order_by(sort_column.desc())
+        else:
+            statement = statement.order_by(sort_column.asc())
+
+        brands = db.exec(statement).all()
+
+    # Calculate mention count for each brand
+    brand_responses = []
+    for brand in brands:
+        # Count mentions for this brand
+        count_statement = select(func.count(Mention.id)).where(Mention.brand_id == brand.id)
+        mention_count = db.exec(count_statement).one()
+
+        brand_responses.append(
+            BrandResponse(
+                id=brand.id,
+                name=brand.name,
+                created_at=brand.created_at,
+                updated_at=brand.updated_at,
+                mention_count=mention_count
+            )
         )
-        for brand in brands
-    ]
+
+    # Sort by mention_count if requested
+    if sort_by == "mention_count":
+        brand_responses.sort(
+            key=lambda x: x.mention_count,
+            reverse=(sort_order == "desc")
+        )
+
+    return brand_responses
 
 
 # ============================================================================
@@ -195,11 +253,16 @@ def get_brand(
             detail=f"Brand with ID {brand_id} not found"
         )
 
+    # Count mentions for this brand
+    count_statement = select(func.count(Mention.id)).where(Mention.brand_id == brand.id)
+    mention_count = db.exec(count_statement).one()
+
     return BrandResponse(
         id=brand.id,
         name=brand.name,
         created_at=brand.created_at,
-        mention_count=None  # TODO: Add count query
+        updated_at=brand.updated_at,
+        mention_count=mention_count
     )
 
 
@@ -212,7 +275,9 @@ def get_brand(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a brand",
     description="""
-    Deletes a brand and all associated mentions.
+    Deletes a brand and all its associated mentions.
+
+    Only the brand owner can delete the brand.
 
     **Requires authentication.**
     """
@@ -221,55 +286,29 @@ def delete_brand(
     brand_id: int,
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
-):
+) -> None:
     """
     Delete a brand by ID.
 
-    This will also delete all mentions associated with the brand due to
-    CASCADE delete rules in the database.
-
     Args:
-        brand_id: Brand ID to delete
+        brand_id: Brand ID
         db: Database session
-        current_user: Authenticated user (required)
-
-    Returns:
-        204 No Content on success
+        current_user: Authenticated user
 
     Raises:
-        404: Brand not found
+        404: Brand not found or not owned by user
     """
-    import logging
-    logger = logging.getLogger(__name__)
-
-    logger.info(f"Attempting to delete brand with ID: {brand_id}")
-    logger.info(f"Authenticated user: {current_user.username}")
-
     brand = db.get(Brand, brand_id)
 
     if not brand or brand.user_id != current_user.id:
-        logger.warning(f"Brand with ID {brand_id} not found or not owned by user")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Brand with ID {brand_id} not found"
         )
 
-    logger.info(f"Found brand: {brand.name} (ID: {brand.id})")
-
-    try:
-        # Delete the brand (mentions will cascade delete)
-        db.delete(brand)
-        db.commit()
-        logger.info(f"Successfully deleted brand: {brand.name} (ID: {brand_id})")
-    except Exception as e:
-        logger.error(f"Error deleting brand {brand_id}: {str(e)}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting brand: {str(e)}"
-        )
-
-    return None
+    # Delete the brand (mentions will be cascade deleted)
+    db.delete(brand)
+    db.commit()
 
 
 # ============================================================================
@@ -339,6 +378,12 @@ def get_brand_mentions(
     # Get total count (before pagination)
     count_statement = statement
     total = len(db.exec(count_statement).all())
+
+    # Sort by most recent first (published_date if available, otherwise ingested_date)
+    statement = statement.order_by(
+        Mention.published_date.desc().nullslast(),
+        Mention.ingested_date.desc()
+    )
 
     # Apply pagination
     statement = statement.offset(offset).limit(limit)

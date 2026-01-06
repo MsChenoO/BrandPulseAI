@@ -370,10 +370,17 @@ Reason: [one sentence explanation]
                     "sentiment_label": mention.sentiment_label.value,
                     "sentiment_score": mention.sentiment_score,
                     "brand_id": mention.brand_id,
-                    "published_at": mention.published_date.isoformat() if mention.published_date else None,
-                    "created_at": mention.processed_date.isoformat() if mention.processed_date else datetime.utcnow().isoformat(),
+                    "brand_name": brand.name,
+                    "published_date": mention.published_date.isoformat() if mention.published_date else None,
+                    "ingested_date": mention.ingested_date.isoformat() if mention.ingested_date else datetime.utcnow().isoformat(),
                 }
-                await broadcast_new_mention(mention_broadcast_data, brand_id=mention.brand_id)
+                # Call broadcast endpoint via HTTP (worker runs as separate process)
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        "http://localhost:8000/ws/broadcast/mention",
+                        json=mention_broadcast_data,
+                        timeout=2.0
+                    )
                 print(f"    ✓ Broadcasted to WebSocket clients")
             except Exception as e:
                 print(f"    ⚠ WebSocket broadcast failed: {e}")

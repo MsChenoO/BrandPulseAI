@@ -353,3 +353,55 @@ async def websocket_stats():
         Statistics about active WebSocket connections
     """
     return manager.get_stats()
+
+
+# ============================================================================
+# Broadcast Endpoint (HTTP) - For Inter-Process Communication
+# ============================================================================
+
+@router.post("/broadcast/mention")
+async def broadcast_mention_endpoint(mention_data: dict):
+    """
+    HTTP endpoint to broadcast a new mention via WebSocket.
+
+    This allows external processes (like sentiment worker) to trigger broadcasts.
+
+    Args:
+        mention_data: Mention data to broadcast
+
+    Returns:
+        Confirmation message
+    """
+    from services.websocket_service import broadcast_new_mention
+
+    brand_id = mention_data.get("brand_id")
+    await broadcast_new_mention(mention_data, brand_id=brand_id)
+
+    return {
+        "status": "broadcasted",
+        "brand_id": brand_id,
+        "connections": manager.get_stats()["total_connections"]
+    }
+
+
+@router.post("/broadcast/stats")
+async def broadcast_stats_endpoint(stats_data: dict):
+    """
+    HTTP endpoint to broadcast stats update via WebSocket.
+
+    Args:
+        stats_data: Statistics data to broadcast
+
+    Returns:
+        Confirmation message
+    """
+    from services.websocket_service import broadcast_stats_update
+
+    user_id = stats_data.get("user_id")
+    brand_id = stats_data.get("brand_id")
+    await broadcast_stats_update(stats_data, user_id=user_id, brand_id=brand_id)
+
+    return {
+        "status": "broadcasted",
+        "connections": manager.get_stats()["total_connections"]
+    }

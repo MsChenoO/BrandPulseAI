@@ -59,14 +59,9 @@ class WebSocketService:
             "timestamp": datetime.utcnow().isoformat()
         }
 
-        if brand_id:
-            # Broadcast to brand subscribers
-            await self.manager.broadcast_to_brand(brand_id, message)
-            logger.info(f"Broadcasted new mention for brand {brand_id}")
-        else:
-            # Broadcast to all users
-            await self.manager.broadcast_to_all(message)
-            logger.info("Broadcasted new mention to all users")
+        # Always broadcast to all users (users can filter on client side)
+        await self.manager.broadcast_to_all(message)
+        logger.info(f"Broadcasted new mention (brand_id: {brand_id}) to all users")
 
     async def broadcast_sentiment_update(
         self,

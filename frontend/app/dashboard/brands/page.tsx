@@ -28,6 +28,23 @@ function isIngestionInProgress(brand: Brand): boolean {
   return diffInMinutes < 5 && (brand.mention_count === 0 || !brand.mention_count)
 }
 
+// Generate consistent color for brand based on name
+function getBrandColor(name: string) {
+  const colors = [
+    'from-blue-500 to-blue-600',
+    'from-purple-500 to-purple-600',
+    'from-pink-500 to-pink-600',
+    'from-red-500 to-red-600',
+    'from-orange-500 to-orange-600',
+    'from-yellow-500 to-yellow-600',
+    'from-green-500 to-green-600',
+    'from-teal-500 to-teal-600',
+    'from-indigo-500 to-indigo-600',
+  ]
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  return colors[hash % colors.length]
+}
+
 export default function BrandsPage() {
   const router = useRouter()
   const [newBrandName, setNewBrandName] = useState('')
@@ -253,14 +270,14 @@ export default function BrandsPage() {
 
         {/* Empty State */}
         {data && data.brands.length === 0 && (
-          <div className="card-modern p-12 text-center">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full gradient-bg-subtle flex items-center justify-center">
-              <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          <div className="card-modern p-16 text-center">
+            <div className="inline-flex h-24 w-24 mx-auto mb-6 rounded-2xl gradient-primary items-center justify-center shadow-2xl">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">No brands yet</h3>
-            <p className="text-muted-foreground">Add your first brand above to start monitoring</p>
+            <h3 className="text-2xl font-bold gradient-text mb-3">No brands yet</h3>
+            <p className="text-lg text-muted-foreground max-w-md mx-auto">Add your first brand above to start monitoring sentiment and tracking mentions</p>
           </div>
         )}
 
@@ -277,10 +294,10 @@ export default function BrandsPage() {
                 <div className="absolute top-0 right-0 w-32 h-32 gradient-primary opacity-10 rounded-bl-full"></div>
 
                 {/* Brand Header */}
-                <div className="relative z-10 mb-4">
-                  <div className="flex items-start gap-4 mb-3">
+                <div className="relative z-10 mb-6">
+                  <div className="flex items-start gap-4 mb-4">
                     {/* Logo */}
-                    <div className="flex-shrink-0 w-14 h-14 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
+                    <div className={`flex-shrink-0 w-16 h-16 rounded-xl bg-gradient-to-br ${getBrandColor(brand.name)} flex items-center justify-center shadow-lg`}>
                       <span className="text-2xl font-bold text-white">
                         {brand.name.charAt(0).toUpperCase()}
                       </span>
@@ -288,38 +305,39 @@ export default function BrandsPage() {
 
                     {/* Brand Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-xl font-bold text-foreground mb-1 truncate">
+                      <h3 className="text-xl font-bold text-foreground mb-2 truncate">
                         {brand.name}
                       </h3>
                       {isIngestionInProgress(brand) ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-primary">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
                           <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                          Fetching...
-                        </span>
+                          <span className="text-sm font-medium text-primary">Fetching mentions...</span>
+                        </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-muted/50">
+                          <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                           </svg>
-                          <span className="font-semibold text-foreground">{brand.mention_count || 0}</span> mentions
+                          <span className="text-sm font-bold text-foreground">{brand.mention_count || 0}</span>
+                          <span className="text-sm text-muted-foreground">mentions</span>
                         </div>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Updated {getRelativeTime(brand.updated_at)}
+                    <span>Updated {getRelativeTime(brand.updated_at)}</span>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col gap-2 relative z-10">
+                <div className="flex flex-col gap-3 relative z-10">
                   <button
                     onClick={() => router.push(`/dashboard/brands/${brand.id}`)}
-                    className="btn-primary w-full text-sm"
+                    className="btn-primary w-full text-sm py-2.5"
                   >
                     <span className="flex items-center justify-center gap-2">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,11 +352,11 @@ export default function BrandsPage() {
                     <button
                       onClick={() => handleFetchMentions(brand.id, brand.name)}
                       disabled={fetchingBrandId === brand.id}
-                      className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border-2 border-primary text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg border-2 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {fetchingBrandId === brand.id ? (
                         <span className="flex items-center justify-center gap-2">
-                          <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                          <div className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
                           Fetching
                         </span>
                       ) : (
@@ -352,7 +370,8 @@ export default function BrandsPage() {
                     </button>
                     <button
                       onClick={() => handleDeleteBrand(brand.id, brand.name)}
-                      className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-danger/30 text-danger hover:bg-danger hover:text-white transition-all"
+                      className="px-4 py-2.5 text-sm font-semibold rounded-lg border-2 border-danger/20 text-danger hover:bg-danger/5 hover:border-danger transition-all"
+                      title="Delete brand"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

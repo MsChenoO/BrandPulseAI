@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from typing import List, Optional
 import sys
 import os
+import logging
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -20,6 +21,9 @@ from sqlalchemy import case
 
 # Import ingestion function for auto-trigger
 from api.routers.ingestion import ingest_brand_mentions
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/brands",

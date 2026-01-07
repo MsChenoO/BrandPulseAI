@@ -39,6 +39,7 @@ function getBrandColor(name: string) {
     'from-yellow-500 to-yellow-600',
     'from-green-500 to-green-600',
     'from-teal-500 to-teal-600',
+    'from-cyan-500 to-cyan-600',
     'from-indigo-500 to-indigo-600',
   ]
   const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
